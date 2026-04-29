@@ -139,6 +139,12 @@
 
     <div class="mx-1 hidden h-6 w-px bg-slate-200 sm:block dark:bg-slate-700" />
 
+    <a href="/tasks" class="btn-ghost hidden !px-2 !py-1.5 sm:flex" title="Tasks" aria-label="Tasks">
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M5 12l5 5L20 7" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </a>
+
     <a href="/timeline" class="btn-ghost hidden !px-2 !py-1.5 sm:flex" title="Timeline" aria-label="Timeline">
       <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="9" />

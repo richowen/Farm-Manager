@@ -138,6 +138,7 @@
     notes: string;
     metadata: Record<string, unknown>;
     photos: PhotoRef[];
+    wormingSchedule?: { intervalDays: number; until: string } | null;
   }): Promise<void> {
     if (!loc) return;
     try {
@@ -162,6 +163,37 @@
         dispatch('iAmHereEventCreated', { location_id: loc.id });
       }
       toast('success', 'Event added.');
+
+      if (detail.wormingSchedule?.until) {
+        const { intervalDays, until } = detail.wormingSchedule;
+        const untilDate = new Date(until + 'T23:59:59');
+        let nextDate = new Date(detail.occurred_at);
+        nextDate.setDate(nextDate.getDate() + intervalDays);
+        const product = typeof detail.metadata?.product === 'string' ? detail.metadata.product : null;
+        const taskPromises: Promise<unknown>[] = [];
+        while (nextDate <= untilDate) {
+          const due_at = nextDate.toISOString().slice(0, 10);
+          taskPromises.push(
+            api.createTask({
+              title: `Worm cattle — ${loc.name}`,
+              due_at,
+              location_id: loc.id,
+              recurrence: 'none',
+              ...(product ? { notes: `Product: ${product}` } : {})
+            })
+          );
+          nextDate = new Date(nextDate);
+          nextDate.setDate(nextDate.getDate() + intervalDays);
+        }
+        if (taskPromises.length > 0) {
+          try {
+            await Promise.all(taskPromises);
+            toast('success', `${taskPromises.length} worming reminder${taskPromises.length === 1 ? '' : 's'} scheduled.`);
+          } catch {
+            toast('error', 'Could not create worming reminders.');
+          }
+        }
+      }
     } catch (err) {
       console.error(err);
       toast('error', 'Could not add event.');
@@ -236,7 +268,7 @@
 
 {#if loc}
   <aside
-    class="detail-panel fixed inset-x-0 bottom-0 top-auto z-[1500] max-h-[85vh] overflow-hidden rounded-t-2xl bg-white shadow-2xl ring-1 ring-black/10 dark:bg-slate-800 sm:right-0 sm:left-auto sm:top-0 sm:max-h-none sm:h-screen sm:w-[420px] sm:rounded-none sm:rounded-l-2xl"
+    class="detail-panel fixed inset-x-0 bottom-0 top-auto z-[1500] max-h-[85dvh] overflow-hidden rounded-t-2xl bg-white shadow-2xl ring-1 ring-black/10 dark:bg-slate-800 sm:right-0 sm:left-auto sm:top-0 sm:max-h-none sm:h-[100dvh] sm:w-[420px] sm:rounded-none sm:rounded-l-2xl"
   >
     <div class="flex h-full flex-col">
       <!-- Header -->
@@ -364,7 +396,7 @@
       </div>
 
       <!-- Tab content -->
-      <div class="flex-1 overflow-auto p-4">
+      <div class="flex-1 min-h-0 overflow-y-auto p-4">
         {#if tab === 'events'}
           {#if !adding}
             <button class="btn-primary mb-3 w-full" on:click={() => (adding = true)}>

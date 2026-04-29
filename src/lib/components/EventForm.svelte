@@ -19,6 +19,7 @@
       notes: string;
       metadata: Record<string, unknown>;
       photos: PhotoRef[];
+      wormingSchedule: { intervalDays: number; until: string } | null;
     };
     cancel: void;
     delete: void;
@@ -33,6 +34,14 @@
     ...(initial?.metadata as Record<string, string | number> | undefined)
   };
   let photos: PhotoRef[] = (initial?.photos ?? []) as PhotoRef[];
+
+  let scheduleWorming = false;
+  let wormingIntervalDays = 42;
+  let wormingUntil = '';
+
+  $: if (eventType !== 'worming') {
+    scheduleWorming = false;
+  }
 
   interface FieldDef {
     key: string;
@@ -114,7 +123,10 @@
       event_type: eventType,
       notes,
       metadata: cleanedMetadata,
-      photos
+      photos,
+      wormingSchedule: eventType === 'worming' && scheduleWorming && wormingUntil
+        ? { intervalDays: wormingIntervalDays, until: wormingUntil }
+        : null
     });
   }
 
@@ -188,6 +200,38 @@
           {/if}
         </div>
       {/each}
+    </div>
+  {/if}
+
+  {#if eventType === 'worming'}
+    <div class="rounded-md bg-slate-50 p-3 dark:bg-slate-700/50 space-y-2">
+      <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <input type="checkbox" bind:checked={scheduleWorming} class="rounded" />
+        Schedule worming reminders
+      </label>
+      {#if scheduleWorming}
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="ev-worming-interval" class="label">Every (days)</label>
+            <input
+              id="ev-worming-interval"
+              type="number"
+              min="1"
+              class="input"
+              bind:value={wormingIntervalDays}
+            />
+          </div>
+          <div>
+            <label for="ev-worming-until" class="label">Until</label>
+            <input
+              id="ev-worming-until"
+              type="date"
+              class="input"
+              bind:value={wormingUntil}
+            />
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 

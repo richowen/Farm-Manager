@@ -53,7 +53,6 @@
   import BatchEventForm from '$lib/components/BatchEventForm.svelte';
   import BatchPropertyForm from '$lib/components/BatchPropertyForm.svelte';
   import TaskBanner from '$lib/components/TaskBanner.svelte';
-  import HiddenLinesChip from '$lib/components/HiddenLinesChip.svelte';
   import type {
     FieldGeometry,
     LineGeometry,
@@ -1308,8 +1307,6 @@
   {/if}
 
   <PinDetailSheet />
-
-  <HiddenLinesChip on:toggleLines={toggleLines} />
 
   {#if !$online}
     <div

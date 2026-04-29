@@ -4,6 +4,32 @@ All notable changes are listed here. Follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-04
+
+### Added
+
+- **Worming schedule reminders.** When logging a `worming` event, a new
+  "Schedule worming reminders" checkbox appears below the product field. Check
+  it, set the repeat interval (default 42 days / 6 weeks) and an end date, and
+  tasks are automatically created on the Tasks page — one per interval — with
+  the field name and product in the title/notes. Each batch is created
+  concurrently and a toast confirms how many reminders were scheduled. Schedules
+  are per-field and fully independent.
+- **Tasks link in desktop TopBar.** The ✓ (tasks) icon now appears in the pill
+  beside Settings on screens ≥ 640 px wide. Previously it was only reachable
+  via the mobile bottom nav.
+
+### Fixed
+
+- **"Add event" popup now scrolls on mobile.** The flex child hosting the
+  event form lacked `min-h-0`, which prevented `overflow-y-auto` from taking
+  effect. Combined with switching from `vh` to `dvh` units (so the panel
+  height accounts for the on-screen keyboard), the Submit button is always
+  reachable by scrolling.
+- **"Pipes hidden" chip removed from map.** The `HiddenLinesChip` overlay in
+  the bottom-left corner of the map has been removed; pipe/drain visibility is
+  still controlled from the TopBar toggle.
+
 ## [0.3.3] — 2026-04
 
 ### Fixed
