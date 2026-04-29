@@ -34,7 +34,7 @@
 </script>
 
 <div class="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex justify-center p-3">
-  <div class="pointer-events-auto flex items-center gap-1 rounded-xl bg-white/95 p-1 shadow-lg ring-1 ring-black/5 backdrop-blur dark:bg-slate-800/95">
+  <div class="pointer-events-auto flex items-center gap-1 overflow-x-auto rounded-xl bg-white/95 p-1 shadow-lg ring-1 ring-black/5 backdrop-blur scrollbar-none dark:bg-slate-800/95">
     <a
       href="/"
       class="btn-ghost !px-2 !py-1.5"
@@ -137,16 +137,16 @@
       </button>
     {/if}
 
-    <div class="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" />
+    <div class="mx-1 hidden h-6 w-px bg-slate-200 sm:block dark:bg-slate-700" />
 
-    <a href="/timeline" class="btn-ghost !px-2 !py-1.5" title="Timeline" aria-label="Timeline">
+    <a href="/timeline" class="btn-ghost hidden !px-2 !py-1.5 sm:flex" title="Timeline" aria-label="Timeline">
       <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="9" />
         <path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </a>
 
-    <a href="/settings" class="btn-ghost !px-2 !py-1.5" title="Settings" aria-label="Settings">
+    <a href="/settings" class="btn-ghost hidden !px-2 !py-1.5 sm:flex" title="Settings" aria-label="Settings">
       <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="3" />
         <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" stroke-linejoin="round" />

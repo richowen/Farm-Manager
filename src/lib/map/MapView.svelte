@@ -1184,7 +1184,7 @@
   }
 </script>
 
-<div class="relative h-screen w-screen overflow-hidden">
+<div class="relative h-[100dvh] w-screen overflow-hidden">
   <div
     bind:this={mapEl}
     class="absolute inset-0"
@@ -1313,8 +1313,8 @@
 
   {#if !$online}
     <div
-      class="pointer-events-none fixed left-1/2 z-[9000] -translate-x-1/2 rounded-full bg-amber-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg"
-      style="bottom: calc(var(--fm-nav-inset) + 0.75rem);"
+      class="pointer-events-none absolute left-1/2 z-[9000] -translate-x-1/2 rounded-full bg-amber-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg"
+      style="top: 4.5rem;"
     >
       Offline — viewing cached data. Changes cannot be saved.
     </div>

@@ -15,6 +15,9 @@
   @media (max-width: 639.98px) {
     :root {
       --fm-nav-inset: calc(3.5rem + env(safe-area-inset-bottom));
+      /* Lift the FAB above the draw toolbar, which can wrap to 2 rows on
+       * narrow screens. 5.5rem clears a max-2-row toolbar (~4.5rem tall). */
+      --fm-fab-lift: 5.5rem;
     }
   }
 

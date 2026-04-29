@@ -8,7 +8,7 @@
 
 <button
   class="fixed right-4 z-[1100] flex min-h-14 min-w-14 items-center justify-center rounded-full bg-pasture-600 text-white shadow-lg ring-2 ring-white/80 transition active:scale-95 disabled:opacity-60 sm:right-6 sm:min-h-16 sm:min-w-16"
-  style="bottom: calc(var(--fm-nav-inset) + 1rem);"
+  style="bottom: calc(var(--fm-nav-inset) + var(--fm-fab-lift, 1rem));"
   aria-label="Log my current location"
   title="Log where you are right now"
   disabled={busy}

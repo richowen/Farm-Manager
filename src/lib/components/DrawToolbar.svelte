@@ -33,7 +33,7 @@
 
 <div
   class="pointer-events-none absolute left-1/2 z-[1000] -translate-x-1/2"
-  style="bottom: calc(var(--fm-nav-inset) + 1rem);"
+  style="bottom: calc(var(--fm-nav-inset) + 1rem); max-width: calc(100vw - 2rem);"
 >
   <div class="pointer-events-auto flex flex-col items-center gap-2">
     {#if mode === 'field' && liveAreaHa !== null}
@@ -47,7 +47,7 @@
       </div>
     {/if}
 
-    <div class="flex items-center gap-1 rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-black/5 dark:bg-slate-800">
+    <div class="flex flex-wrap items-center justify-center gap-1 rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-black/5 dark:bg-slate-800">
       {#if mode === 'idle'}
         <button
           class="btn-primary min-h-11 min-w-11"
