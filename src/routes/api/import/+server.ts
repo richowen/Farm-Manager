@@ -13,8 +13,10 @@ import {
 } from '$lib/schemas';
 
 /**
- * Accepts v1 or v2 export payloads. v2 adds `field_uses` and `tasks`. In both
- * cases we APPEND by default; `?mode=replace` truncates first.
+ * Accepts v1, v2 or v3 export payloads.
+ *   v2 adds `field_uses` and `tasks`.
+ *   v3 adds `pins`.
+ * In all cases we APPEND by default; `?mode=replace` truncates first.
  */
 
 const baseLocationSchema = z.object({
@@ -61,14 +63,32 @@ const taskRowSchema = z.object({
   recurrence: z.enum(['none', 'weekly', 'monthly', 'yearly']).optional()
 });
 
+// Export emits lng/lat as separate numeric columns.
+const pinRowSchema = z.object({
+  id: z.string().uuid().optional(),
+  location_id: z.string().uuid().nullable().optional(),
+  lng: z.number().gte(-180).lte(180),
+  lat: z.number().gte(-90).lte(90),
+  title: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
+  status: z.enum(['todo', 'done', 'note']).optional(),
+  photos: z.array(z.unknown()).optional(),
+  accuracy_m: z.number().nullable().optional(),
+  done_at: z.string().nullable().optional(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional()
+});
+
 const importPayloadSchema = z.object({
-  version: z.literal(1).or(z.literal(2)),
+  version: z.literal(1).or(z.literal(2)).or(z.literal(3)),
   exported_at: z.string().optional(),
   settings: userSettingsSchema.partial().optional(),
   locations: z.array(baseLocationSchema).default([]),
   events: z.array(baseEventSchema).default([]),
   field_uses: z.array(fieldUseRowSchema).default([]),
-  tasks: z.array(taskRowSchema).default([])
+  tasks: z.array(taskRowSchema).default([]),
+  pins: z.array(pinRowSchema).default([])
 });
 
 export const POST: RequestHandler = async ({ request, url }) => {
@@ -101,6 +121,7 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
   await withTransaction(async (client) => {
     if (mode === 'replace') {
+      await client.query('DELETE FROM pins');
       await client.query('DELETE FROM tasks');
       await client.query('DELETE FROM field_uses');
       await client.query('DELETE FROM events');
@@ -210,6 +231,42 @@ export const POST: RequestHandler = async ({ request, url }) => {
         ]
       );
     }
+
+    for (const p of parsed.data.pins) {
+      await client.query(
+        `INSERT INTO pins (id, location_id, geom, title, notes, category, status, photos, accuracy_m, done_at)
+         VALUES (
+           COALESCE($1, gen_random_uuid()),
+           $2,
+           ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography,
+           $5, $6, $7, $8, $9::jsonb, $10, $11
+         )
+         ON CONFLICT (id) DO UPDATE SET
+           location_id = EXCLUDED.location_id,
+           geom = EXCLUDED.geom,
+           title = EXCLUDED.title,
+           notes = EXCLUDED.notes,
+           category = EXCLUDED.category,
+           status = EXCLUDED.status,
+           photos = EXCLUDED.photos,
+           accuracy_m = EXCLUDED.accuracy_m,
+           done_at = EXCLUDED.done_at,
+           updated_at = now()`,
+        [
+          p.id ?? null,
+          p.location_id ?? null,
+          p.lng,
+          p.lat,
+          p.title ?? null,
+          p.notes ?? null,
+          p.category ?? null,
+          p.status ?? 'todo',
+          JSON.stringify(p.photos ?? []),
+          p.accuracy_m ?? null,
+          p.done_at ?? null
+        ]
+      );
+    }
   });
 
   if (parsed.data.settings) {
@@ -222,7 +279,8 @@ export const POST: RequestHandler = async ({ request, url }) => {
       locations: parsed.data.locations.length,
       events: parsed.data.events.length,
       field_uses: parsed.data.field_uses.length,
-      tasks: parsed.data.tasks.length
+      tasks: parsed.data.tasks.length,
+      pins: parsed.data.pins.length
     }
   });
 };

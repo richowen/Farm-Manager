@@ -349,6 +349,83 @@ export interface TaskRecord {
   updated_at: string;
 }
 
+// ---- Pins -------------------------------------------------------------------
+export const PIN_STATUSES = ['todo', 'done', 'note'] as const;
+export type PinStatus = (typeof PIN_STATUSES)[number];
+export const pinStatusSchema = z.enum(PIN_STATUSES);
+
+/** Bare `[lng, lat]` pair used for pin coordinates (no z, no GeoJSON wrapper). */
+const lngLat = z.tuple([z.number().gte(-180).lte(180), z.number().gte(-90).lte(90)]);
+
+export const createPinSchema = z.object({
+  coords: lngLat,
+  accuracy_m: z.number().nonnegative().optional().nullable(),
+  title: z.string().trim().min(1).max(200).optional().nullable(),
+  notes: z.string().max(5000).optional().nullable(),
+  category: z.string().trim().min(1).max(64).optional().nullable(),
+  status: pinStatusSchema.default('todo'),
+  photos: z.array(photoRefSchema).max(20).optional(),
+  // Client-derived; server re-validates via ST_Covers when omitted.
+  location_id: z.string().uuid().nullable().optional()
+});
+
+export const updatePinSchema = z.object({
+  title: z.string().trim().min(1).max(200).nullable().optional(),
+  notes: z.string().max(5000).nullable().optional(),
+  category: z.string().trim().min(1).max(64).nullable().optional(),
+  status: pinStatusSchema.optional(),
+  photos: z.array(photoRefSchema).max(20).optional(),
+  coords: lngLat.optional(),
+  location_id: z.string().uuid().nullable().optional()
+});
+
+export type CreatePinInput = z.infer<typeof createPinSchema>;
+export type UpdatePinInput = z.infer<typeof updatePinSchema>;
+
+export interface PinRecord {
+  id: string;
+  location_id: string | null;
+  coords: [number, number]; // [lng, lat]
+  accuracy_m: number | null;
+  title: string | null;
+  notes: string | null;
+  category: string | null;
+  status: PinStatus;
+  photos: PhotoRef[];
+  done_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const DEFAULT_PIN_CATEGORIES = [
+  'repair',
+  'restock',
+  'check',
+  'observation',
+  'hazard',
+  'livestock-health',
+  'crop-issue',
+  'general'
+] as const;
+
+export const DEFAULT_PIN_CATEGORY_COLORS: Record<string, string> = {
+  repair: '#f97316',
+  restock: '#3b82f6',
+  check: '#eab308',
+  observation: '#22c55e',
+  hazard: '#ef4444',
+  'livestock-health': '#ec4899',
+  'crop-issue': '#8b5cf6',
+  general: '#6b7280'
+};
+
+/** Status colours used for pin markers and chips across the UI. */
+export const PIN_STATUS_COLORS: Record<PinStatus, string> = {
+  todo: '#f97316', // orange
+  done: '#22c55e', // green
+  note: '#64748b' // slate
+};
+
 // ---- Settings ---------------------------------------------------------------
 export const DEFAULT_USE_TYPES = ['grazing', 'mowing', 'hay'] as const;
 export const DEFAULT_USE_COLORS: Record<string, string> = {
@@ -373,7 +450,19 @@ export const userSettingsSchema = z.object({
   showLines: z.boolean().default(false),
   /** Set to `true` once the one-off legacy-line classification dialog has been
    *  shown in Settings so it doesn't come back after the user dismisses it. */
-  legacyLinesPrompted: z.boolean().default(false)
+  legacyLinesPrompted: z.boolean().default(false),
+  /** Pin category whitelist — free strings, but the UI only offers these as
+   *  chips. Editing in Settings writes both `pinCategories` and
+   *  `pinCategoryColors` together. */
+  pinCategories: z
+    .array(z.string().trim().min(1).max(64))
+    .default([...DEFAULT_PIN_CATEGORIES]),
+  pinCategoryColors: z.record(z.string().regex(/^#[0-9a-fA-F]{6}$/)).default({}),
+  /** Master pin-visibility toggle. Default on so new pins are immediately
+   *  discoverable after a fresh install. */
+  showPins: z.boolean().default(true),
+  /** Whether completed pins should render on the map when `showPins` is on. */
+  showDonePins: z.boolean().default(true)
 });
 
 export type UserSettings = z.infer<typeof userSettingsSchema>;

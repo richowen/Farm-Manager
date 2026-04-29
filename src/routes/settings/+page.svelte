@@ -3,6 +3,7 @@
   import { api, ApiError } from '$lib/client/api';
   import { DEFAULT_USE_COLORS, type LocationRecord, type UserSettings } from '$lib/schemas';
   import { toast } from '$lib/stores';
+  import PinCategoryEditor from '$lib/components/PinCategoryEditor.svelte';
 
   let settings: UserSettings | null = null;
   let pwCurrent = '';
@@ -161,7 +162,7 @@
     if (
       importMode === 'replace' &&
       !confirm(
-        'REPLACE mode will delete all existing locations, events, field-use history, and tasks before importing. Continue?'
+        'REPLACE mode will delete all existing locations, events, field-use history, tasks, and pins before importing. Continue?'
       )
     ) {
       input.value = '';
@@ -187,6 +188,7 @@
         ];
         if (body.counts.field_uses) parts.push(`${body.counts.field_uses} use periods`);
         if (body.counts.tasks) parts.push(`${body.counts.tasks} tasks`);
+        if (body.counts.pins) parts.push(`${body.counts.pins} pins`);
         toast('success', 'Imported ' + parts.join(', ') + '.');
       }
     } catch (err) {
@@ -303,6 +305,16 @@
       useColors: { ...settings.useColors, [t]: c }
     };
   }
+
+  // ---- Pins ---------------------------------------------------------------
+  function onPinCategoryChange(ev: CustomEvent<{ categories: string[]; colors: Record<string, string> }>): void {
+    if (!settings) return;
+    settings = {
+      ...settings,
+      pinCategories: ev.detail.categories,
+      pinCategoryColors: ev.detail.colors
+    };
+  }
 </script>
 
 <svelte:head>
@@ -416,6 +428,45 @@
       {/if}
     </section>
 
+    <!-- Pins -->
+    <section class="card p-4">
+      <h2 class="mb-1 text-base font-semibold">Pins</h2>
+      <p class="mb-3 text-xs text-slate-500">
+        Pins are geolocated notes you can drop anywhere on the map. Categories drive the inner colour dot on each pin.
+      </p>
+      {#if settings}
+        <div class="space-y-4">
+          <div>
+            <span class="label">Categories</span>
+            <PinCategoryEditor
+              categories={settings.pinCategories}
+              colors={settings.pinCategoryColors}
+              on:change={onPinCategoryChange}
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" bind:checked={settings.showPins} />
+              Show pins on the map
+            </label>
+            <label class="flex items-center gap-2 text-sm" class:opacity-50={!settings.showPins}>
+              <input
+                type="checkbox"
+                bind:checked={settings.showDonePins}
+                disabled={!settings.showPins}
+              />
+              Also show completed pins
+            </label>
+          </div>
+
+          <div>
+            <button class="btn-primary" on:click={saveSettings}>Save pin settings</button>
+          </div>
+        </div>
+      {/if}
+    </section>
+
     <!-- Calendar feed -->
     <section class="card p-4">
       <h2 class="mb-1 text-base font-semibold">Calendar feed</h2>
@@ -485,7 +536,7 @@
     <section class="card p-4">
       <h2 class="mb-3 text-base font-semibold">Backup &amp; restore</h2>
       <p class="mb-3 text-xs text-slate-500">
-        The JSON backup now includes field-use history and tasks as well as locations and events. v1 backups (from Farm Manager 0.1) still import correctly.
+        The JSON backup includes locations, events, field-use history, tasks, and pins. v1/v2 backups still import correctly.
       </p>
       <div class="space-y-3">
         <div class="flex flex-wrap gap-2">

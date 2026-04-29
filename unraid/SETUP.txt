@@ -143,7 +143,7 @@ Backups
 -------
 - Full app backup (recommended): Settings page → "Download full
   backup (.json)". This includes locations, events, field-use
-  history, and tasks in one file. Restore via the same page.
+  history, tasks, and pins in one file. Restore via the same page.
 
 - Database dump (from Unraid terminal):
     docker exec farm-manager-db pg_dump -U farm farm > \

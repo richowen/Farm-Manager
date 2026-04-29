@@ -8,8 +8,9 @@ import { query } from '$lib/server/db';
  * Export format:
  *   v1 — legacy, {settings, locations, events}
  *   v2 — adds {field_uses, tasks} so use history and reminders round-trip
+ *   v3 — adds {pins} so geolocated notes round-trip
  *
- * The default is v2. Import supports both.
+ * The default is v3. Import supports v1/v2/v3.
  */
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -50,7 +51,7 @@ export const GET: RequestHandler = async ({ url }) => {
     cursor = res.nextCursor;
   } while (cursor);
 
-  // Pull full field_use history and tasks directly (small tables).
+  // Pull full field_use history, tasks, and pins directly (small tables).
   const { rows: fieldUses } = await query(
     `SELECT id, location_id, use_type, started_at, ended_at, notes, metadata,
             created_at, updated_at
@@ -61,15 +62,26 @@ export const GET: RequestHandler = async ({ url }) => {
             created_at, updated_at
        FROM tasks ORDER BY created_at`
   );
+  // Return coords as separate lng/lat numbers — avoids the client having to
+  // know about PostGIS's WKB hex representation.
+  const { rows: pins } = await query(
+    `SELECT id, location_id,
+            ST_X(geom::geometry) AS lng,
+            ST_Y(geom::geometry) AS lat,
+            title, notes, category, status, photos, accuracy_m,
+            done_at, created_at, updated_at
+       FROM pins ORDER BY created_at`
+  );
 
   const payload = {
-    version: 2,
+    version: 3,
     exported_at: new Date().toISOString(),
     settings,
     locations,
     events,
     field_uses: fieldUses,
-    tasks
+    tasks,
+    pins
   };
 
   return new Response(JSON.stringify(payload, null, 2), {

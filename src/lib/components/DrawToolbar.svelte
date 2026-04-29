@@ -19,6 +19,7 @@
     drawShed: void;
     drawPipe: void;
     drawDrain: void;
+    drawPin: void;
     addBranch: void;
     finishLine: void;
     edit: void;
@@ -97,6 +98,18 @@
             <circle cx="21" cy="16" r="1.2" fill="currentColor" />
           </svg>
           <span class="hidden sm:inline">Drain</span>
+        </button>
+        <button
+          class="btn-secondary min-h-11 min-w-11"
+          on:click={() => dispatch('drawPin')}
+          aria-label="Drop a pin"
+          title="Drop a pin anywhere on the map"
+        >
+          <svg class="h-5 w-5 text-orange-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z" stroke-linejoin="round" />
+            <circle cx="12" cy="9" r="2.5" />
+          </svg>
+          <span class="hidden sm:inline">Pin</span>
         </button>
         <div class="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" />
         <button
@@ -182,6 +195,11 @@
       {:else if mode === 'edit'}
         <span class="px-2 text-sm text-slate-700 dark:text-slate-200">Edit mode</span>
         <button class="btn-primary" on:click={() => dispatch('save')}>Done</button>
+        <button class="btn-ghost" on:click={() => dispatch('cancel')}>Cancel</button>
+      {:else if mode === 'pin'}
+        <span class="px-2 text-sm text-slate-700 dark:text-slate-200">
+          Tap the map where the pin should go
+        </span>
         <button class="btn-ghost" on:click={() => dispatch('cancel')}>Cancel</button>
       {/if}
     </div>

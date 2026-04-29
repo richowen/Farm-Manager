@@ -4,6 +4,50 @@ All notable changes are listed here. Follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-04
+
+### Added
+
+- **Pins — geolocated notes with status, category, and photos.** A new pin
+  entity lives alongside fields, sheds, and lines. Each pin carries a
+  3-state status (**to-do / done / note**), an editable category, an
+  optional title + notes body, and up to 20 photos. Pins are independent
+  of fields; deleting a field sets the snapshot `location_id` to `NULL`
+  rather than cascading.
+- **Three ways to drop a pin.** The "I am here" FAB now shows a chooser
+  ("Log event in *Field*" / "Drop pin here") after GPS lock. A new **Pin**
+  button on the draw toolbar consumes the next map tap. And long-pressing
+  the map (~600 ms, ≤10 px movement) drops a pin at that spot, with a
+  touch-friendly vibration cue.
+- **Coloured teardrop markers.** Outer shape is the status colour (orange
+  to-do, green done, slate note); inner dot is the category colour so
+  both facets are readable at a glance. Completed pins render at 60%
+  opacity so they recede without disappearing.
+- **Pin detail sheet** with primary-action row (Mark done / Re-open /
+  Convert to note) and a pencil button that opens the full edit modal.
+  Delete requires confirmation. Bottom-sheet on mobile, right panel on
+  desktop.
+- **`/pins` list page** — browse every pin grouped by status, with
+  category and location filters. Tapping a row navigates back to the map
+  via `?pin=<id>` and opens its detail sheet.
+- **5-tab mobile nav.** Map / Timeline / Tasks / **Pins** / More.
+- **Map toggles.** Top bar gains a pin toggle and a show-completed toggle;
+  both persist via the new `showPins` and `showDonePins` settings flags
+  (default on).
+- **Editable pin categories.** Settings page has a new Pins section where
+  categories and their colours can be edited or removed. 8 defaults ship
+  out of the box: `repair`, `restock`, `check`, `observation`, `hazard`,
+  `livestock-health`, `crop-issue`, `general`.
+- **Pin round-trip through JSON export/import.** Export bumped to **v3**;
+  v1/v2 backups still import correctly. Replace-mode import now truncates
+  pins alongside the other tables.
+
+### Scoped out (deferred)
+
+- Pin clustering at low zoom, pin drag-to-reposition, offline create /
+  outbox queue, pin-to-event linking, searchable pin text index. All
+  tracked for follow-up releases.
+
 ## [0.2.2] — 2026-04
 
 ### Fixed

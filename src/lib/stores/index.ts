@@ -1,5 +1,5 @@
 import { writable, derived, type Writable } from 'svelte/store';
-import type { LocationKind, LocationRecord, UserSettings } from '$lib/schemas';
+import type { LocationKind, LocationRecord, PinRecord, UserSettings } from '$lib/schemas';
 
 // ---- Locations --------------------------------------------------------------
 export const locations: Writable<LocationRecord[]> = writable([]);
@@ -80,8 +80,33 @@ export const selectionKind = derived(
 );
 
 // ---- Draw mode --------------------------------------------------------------
-export type DrawMode = 'idle' | 'field' | 'shed' | 'line' | 'edit';
+export type DrawMode = 'idle' | 'field' | 'shed' | 'line' | 'edit' | 'pin';
 export const drawMode = writable<DrawMode>('idle');
+
+// ---- Pins -------------------------------------------------------------------
+export const pins: Writable<PinRecord[]> = writable([]);
+export const pinsLoaded = writable(false);
+
+export function upsertPin(p: PinRecord): void {
+  pins.update((list) => {
+    const idx = list.findIndex((x) => x.id === p.id);
+    if (idx === -1) return [...list, p];
+    const next = list.slice();
+    next[idx] = p;
+    return next;
+  });
+}
+
+export function removePin(id: string): void {
+  pins.update((list) => list.filter((p) => p.id !== id));
+}
+
+/** Currently-open pin detail sheet, by id. Mirrors `selectedLocationId`. */
+export const selectedPinId = writable<string | null>(null);
+export const selectedPin = derived(
+  [pins, selectedPinId],
+  ([$pins, $id]) => ($id ? $pins.find((p) => p.id === $id) ?? null : null)
+);
 
 // ---- Map colouring ----------------------------------------------------------
 export type ColorMode = 'location' | 'use';

@@ -5,11 +5,15 @@
   export let labelsVisible: boolean;
   export let baseLayerChoice: 'esri' | 'osm';
   export let showLines = false;
+  export let showPins = true;
+  export let showDonePins = true;
 
   const dispatch = createEventDispatcher<{
     toggleLabels: void;
     toggleBase: void;
     toggleLines: void;
+    togglePins: void;
+    toggleDonePins: void;
     fitAll: void;
   }>();
 
@@ -103,6 +107,35 @@
         <path d="M3 12c3 0 3-4 6-4s3 4 6 4 3-4 6-4" stroke-linecap="round" />
       </svg>
     </button>
+
+    <button
+      class="btn-ghost !px-2 !py-1.5"
+      class:!text-pasture-600={showPins}
+      aria-pressed={showPins}
+      title={showPins ? 'Hide pins' : 'Show pins'}
+      aria-label="Toggle pins"
+      on:click={() => dispatch('togglePins')}
+    >
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z" stroke-linejoin="round" />
+        <circle cx="12" cy="9" r="2.5" />
+      </svg>
+    </button>
+
+    {#if showPins}
+      <button
+        class="btn-ghost !px-2 !py-1.5"
+        class:!text-pasture-600={showDonePins}
+        aria-pressed={showDonePins}
+        title={showDonePins ? 'Hide completed pins' : 'Show completed pins'}
+        aria-label="Toggle completed pins"
+        on:click={() => dispatch('toggleDonePins')}
+      >
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M5 12l5 5L20 7" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+    {/if}
 
     <div class="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" />
 

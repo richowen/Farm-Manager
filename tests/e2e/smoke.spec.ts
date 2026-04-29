@@ -45,6 +45,16 @@ test('tasks page is behind auth', async ({ page }) => {
   expect(res?.url()).toContain('/login');
 });
 
+test('pins page is behind auth', async ({ page }) => {
+  const res = await page.goto('/pins');
+  expect(res?.url()).toContain('/login');
+});
+
+test('/api/pins requires a session', async ({ request }) => {
+  const res = await request.get('/api/pins', { maxRedirects: 0 });
+  expect(res.status()).toBe(401);
+});
+
 test('uploads route is behind auth', async ({ request }) => {
   // Disable follow-redirects so we see the 303 redirect to /login (which the
   // hooks middleware emits for page routes) rather than silently following it

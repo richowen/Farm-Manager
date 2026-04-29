@@ -17,7 +17,13 @@
     clearSelection,
     toggleSelection,
     addSelection,
-    colorMode
+    colorMode,
+    pins,
+    pinsLoaded,
+    selectedPinId,
+    selectedPin,
+    upsertPin,
+    removePin
   } from '$lib/stores';
   import {
     findContainingLocation,
@@ -39,6 +45,9 @@
   import NewLocationModal from '$lib/components/NewLocationModal.svelte';
   import Toaster from '$lib/components/Toaster.svelte';
   import IAmHereFab from '$lib/components/IAmHereFab.svelte';
+  import IAmHereChooser from '$lib/components/IAmHereChooser.svelte';
+  import PinDropModal from '$lib/components/PinDropModal.svelte';
+  import PinDetailSheet from '$lib/components/PinDetailSheet.svelte';
   import SelectionChip from '$lib/components/SelectionChip.svelte';
   import UseLegend from '$lib/components/UseLegend.svelte';
   import BatchEventForm from '$lib/components/BatchEventForm.svelte';
@@ -51,13 +60,16 @@
     LineStringGeometry,
     LineType,
     LocationRecord,
+    PinRecord,
     PointGeometry
   } from '$lib/schemas';
+  import { DEFAULT_PIN_CATEGORY_COLORS, PIN_STATUS_COLORS } from '$lib/schemas';
 
   let mapEl: HTMLDivElement;
   let map: import('leaflet').Map | null = null;
   let L: typeof import('leaflet');
   let layerById = new Map<string, import('leaflet').Layer>();
+  let pinLayerById = new Map<string, import('leaflet').Marker>();
   let labelsVisible = true;
   let baseLayerChoice: 'esri' | 'osm' = 'esri';
   let esriBase: import('leaflet').TileLayer;
@@ -87,6 +99,21 @@
     coords: [number, number];
     accuracy: number | null;
   } | null = null;
+
+  /** State for the post-GPS-lock chooser sheet ("Log event" / "Drop pin"). */
+  let iAmHereChooserState: {
+    coords: [number, number];
+    accuracy: number | null;
+    containingField: LocationRecord | null;
+  } | null = null;
+
+  /** State for the pin drop/create modal. When set, the modal renders. */
+  let pinDropState: {
+    coords: [number, number];
+    accuracy_m: number | null;
+    containingField: LocationRecord | null;
+  } | null = null;
+  let pinSaving = false;
 
   // ---- Init ----------------------------------------------------------------
   onMount(async () => {
@@ -150,7 +177,30 @@
       toast('error', 'Failed to load map data.');
     }
 
+    // Pins load independently of locations — failure here shouldn't block
+    // the map boot. The pin layer re-renders reactively once the store fills.
+    try {
+      const res = await api.listPins();
+      pins.set(res.items);
+      pinsLoaded.set(true);
+      renderAllPins();
+    } catch (err) {
+      console.warn('pins load failed', err);
+    }
+
     map.on('pm:create', handlePmCreate);
+
+    // Long-press listeners for drop-a-pin. We attach to the container rather
+    // than the map instance so we can decide based on the DOM target (don't
+    // long-press markers/features).
+    mapEl.addEventListener('pointerdown', onMapPointerDown);
+    mapEl.addEventListener('pointermove', onMapPointerMove);
+    mapEl.addEventListener('pointerup', onMapPointerUpOrCancel);
+    mapEl.addEventListener('pointercancel', onMapPointerUpOrCancel);
+    mapEl.addEventListener('pointerleave', onMapPointerUpOrCancel);
+    // If the map starts dragging, cancel any pending press so a pan doesn't
+    // accidentally become a pin drop.
+    map.on('movestart dragstart zoomstart', () => cancelLongPress());
 
     // Viewport persistence.
     let moveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -172,6 +222,14 @@
   });
 
   onDestroy(() => {
+    cancelLongPress();
+    if (mapEl) {
+      mapEl.removeEventListener('pointerdown', onMapPointerDown);
+      mapEl.removeEventListener('pointermove', onMapPointerMove);
+      mapEl.removeEventListener('pointerup', onMapPointerUpOrCancel);
+      mapEl.removeEventListener('pointercancel', onMapPointerUpOrCancel);
+      mapEl.removeEventListener('pointerleave', onMapPointerUpOrCancel);
+    }
     if (map) map.remove();
     map = null;
   });
@@ -283,6 +341,124 @@
         </svg>
       </div>
     `;
+  }
+
+  // ---- Pins ----------------------------------------------------------------
+  function pinCategoryColor(p: PinRecord): string {
+    if (!p.category) return '#9ca3af';
+    const override = $settings?.pinCategoryColors?.[p.category];
+    return override ?? DEFAULT_PIN_CATEGORY_COLORS[p.category] ?? '#9ca3af';
+  }
+
+  function pinMarkerHtml(p: PinRecord): string {
+    const statusColor = PIN_STATUS_COLORS[p.status] ?? '#64748b';
+    const catColor = pinCategoryColor(p);
+    const opacity = p.status === 'done' ? 0.6 : 1;
+    // Teardrop: outer shape is the status colour; inner dot is the category
+    // colour so both facets are readable at a glance.
+    return `
+      <div style="position:relative;width:28px;height:36px;opacity:${opacity};filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">
+        <svg viewBox="0 0 28 36" width="28" height="36" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 1 C6 1 1 6 1 13 C1 22 14 35 14 35 C14 35 27 22 27 13 C27 6 22 1 14 1 Z"
+                fill="${statusColor}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+          <circle cx="14" cy="13" r="5" fill="${catColor}" stroke="#fff" stroke-width="1"/>
+        </svg>
+      </div>
+    `;
+  }
+
+  function pinDivIcon(p: PinRecord): import('leaflet').DivIcon {
+    return L.divIcon({
+      className: 'pin-marker',
+      html: pinMarkerHtml(p),
+      iconSize: [28, 36],
+      iconAnchor: [14, 34]
+    });
+  }
+
+  function shouldRenderPin(p: PinRecord): boolean {
+    if (!($settings?.showPins ?? true)) return false;
+    if (p.status === 'done' && !($settings?.showDonePins ?? true)) return false;
+    return true;
+  }
+
+  function addPinLayer(p: PinRecord): void {
+    if (!map) return;
+    const [lng, lat] = p.coords;
+    const marker = L.marker([lat, lng], {
+      icon: pinDivIcon(p),
+      title: p.title ?? p.category ?? 'Pin',
+      // Pins should float above locations but not get in the way of drawing.
+      zIndexOffset: 500
+    });
+    marker.on('click', () => {
+      if ($drawMode !== 'idle') return;
+      selectedPinId.set(p.id);
+    });
+    marker.addTo(map);
+    pinLayerById.set(p.id, marker);
+  }
+
+  function renderAllPins(): void {
+    if (!map) return;
+    pinLayerById.forEach((m) => map!.removeLayer(m));
+    pinLayerById.clear();
+    if (!($settings?.showPins ?? true)) return;
+    for (const p of $pins) {
+      if (!shouldRenderPin(p)) continue;
+      addPinLayer(p);
+    }
+  }
+
+  // When a pin becomes selected via a deep link (`?pin=<id>`) we want the
+  // map to pan to it so the detail sheet isn't pointing at empty space.
+  // Track the previously-selected id so we only pan on change, not on every
+  // tick.
+  let lastPannedPinId: string | null = null;
+  $: if (map && $selectedPin && $selectedPin.id !== lastPannedPinId) {
+    lastPannedPinId = $selectedPin.id;
+    const [lng, lat] = $selectedPin.coords;
+    map.setView([lat, lng], Math.max(map.getZoom(), 16), { animate: true });
+  }
+  $: if (!$selectedPin) lastPannedPinId = null;
+
+  // Reactive pin re-render: mirror the locations pattern but on the pin store
+  // and the two pin-visibility settings.
+  $: if (map && L && $pinsLoaded) {
+    void $settings; // re-run when settings change (category colours, toggles)
+    const showPins = $settings?.showPins ?? true;
+    if (!showPins) {
+      for (const [id, marker] of pinLayerById) {
+        map.removeLayer(marker);
+        pinLayerById.delete(id);
+      }
+    } else {
+      const live = new Set($pins.map((p) => p.id));
+      // Remove stale or now-hidden pins.
+      for (const [id, marker] of pinLayerById) {
+        const p = $pins.find((x) => x.id === id);
+        if (!live.has(id) || !p || !shouldRenderPin(p)) {
+          map.removeLayer(marker);
+          pinLayerById.delete(id);
+        }
+      }
+      // Add newly-visible pins and refresh icons for existing ones so status
+      // / category / colour changes take effect.
+      for (const p of $pins) {
+        if (!shouldRenderPin(p)) continue;
+        const existing = pinLayerById.get(p.id);
+        if (!existing) {
+          addPinLayer(p);
+        } else {
+          existing.setIcon(pinDivIcon(p));
+          const [lng, lat] = p.coords;
+          const cur = existing.getLatLng();
+          if (Math.abs(cur.lng - lng) > 1e-9 || Math.abs(cur.lat - lat) > 1e-9) {
+            existing.setLatLng([lat, lng]);
+          }
+        }
+      }
+    }
   }
 
   // Re-render when locations list / selection / colourMode changes.
@@ -434,7 +610,107 @@
     map.pm.disableDraw();
     map.pm.disableGlobalEditMode();
     if (lineDraftType) cancelLineDraft();
+    if ($drawMode === 'pin') cancelPinDrop();
     drawMode.set('idle');
+  }
+
+  // ---- Pin drop mode -------------------------------------------------------
+  /** Handler bound to the map click event while drawMode === 'pin'. */
+  let pinDropClickHandler: ((e: import('leaflet').LeafletMouseEvent) => void) | null = null;
+
+  function startDrawPin(): void {
+    if (!map) return;
+    cancelLineDraft();
+    map.pm.disableDraw();
+    drawMode.set('pin');
+    // Change the cursor so users know the next click is consumed.
+    mapEl.style.cursor = 'crosshair';
+    pinDropClickHandler = (e: import('leaflet').LeafletMouseEvent) => {
+      // First click wins — tear down before opening the modal so a stray
+      // double-tap can't drop two pins.
+      const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
+      const containing = findContainingLocation($locations, e.latlng.lat, e.latlng.lng);
+      cancelPinDrop();
+      drawMode.set('idle');
+      pinDropState = {
+        coords,
+        accuracy_m: null,
+        containingField: containing
+      };
+    };
+    map.on('click', pinDropClickHandler);
+  }
+
+  function cancelPinDrop(): void {
+    if (map && pinDropClickHandler) {
+      map.off('click', pinDropClickHandler);
+    }
+    pinDropClickHandler = null;
+    if (mapEl) mapEl.style.cursor = '';
+  }
+
+  // ---- Long-press to drop a pin -------------------------------------------
+  /**
+   * Long-press detection: ~600 ms hold on the map container without moving
+   * more than 10 px and without hitting an existing marker/feature. Works on
+   * both touch and mouse. When triggered, switches into pin-drop state
+   * directly — no toolbar bounce.
+   */
+  const LONG_PRESS_MS = 600;
+  const LONG_PRESS_TOL_PX = 10;
+  let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  let longPressStart: { x: number; y: number } | null = null;
+
+  function cancelLongPress(): void {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+    longPressStart = null;
+  }
+
+  function onMapPointerDown(ev: PointerEvent): void {
+    // Ignore if we're already in an active draw / edit / pin flow, or the
+    // press started on an existing map feature (SVG / marker), not the
+    // empty map container.
+    if (!map) return;
+    if ($drawMode !== 'idle') return;
+    const target = ev.target as Element | null;
+    if (!target) return;
+    if (target.closest('.leaflet-marker-icon') || target.closest('path, circle, polygon')) return;
+    if (ev.button !== undefined && ev.button !== 0) return;
+
+    longPressStart = { x: ev.clientX, y: ev.clientY };
+    cancelLongPress();
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      if (!map || !longPressStart) return;
+      const rect = mapEl.getBoundingClientRect();
+      const x = longPressStart.x - rect.left;
+      const y = longPressStart.y - rect.top;
+      const ll = map.containerPointToLatLng([x, y]);
+      const containing = findContainingLocation($locations, ll.lat, ll.lng);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(15);
+      pinDropState = {
+        coords: [ll.lng, ll.lat],
+        accuracy_m: null,
+        containingField: containing
+      };
+      longPressStart = null;
+    }, LONG_PRESS_MS);
+  }
+
+  function onMapPointerMove(ev: PointerEvent): void {
+    if (!longPressStart || !longPressTimer) return;
+    const dx = ev.clientX - longPressStart.x;
+    const dy = ev.clientY - longPressStart.y;
+    if (dx * dx + dy * dy > LONG_PRESS_TOL_PX * LONG_PRESS_TOL_PX) {
+      cancelLongPress();
+    }
+  }
+
+  function onMapPointerUpOrCancel(): void {
+    cancelLongPress();
   }
 
   async function saveEdits(): Promise<void> {
@@ -686,17 +962,14 @@
         herePulse = L.marker([lat, lng], { icon, interactive: false }).addTo(map!);
 
         const containing = findContainingLocation($locations, lat, lng);
-        iAmHerePreset = {
-          location_id: containing?.id ?? null,
+        // Stash state for both the chooser (next step) and the potential
+        // event-creation flow. The old auto-open behaviour is replaced by
+        // the chooser sheet, which lets the user pick event-vs-pin.
+        iAmHereChooserState = {
           coords: [lng, lat],
-          accuracy
+          accuracy,
+          containingField: containing
         };
-        if (containing) {
-          selectedLocationId.set(containing.id);
-          toast('success', `You're in ${containing.name}${accuracy ? ` (±${Math.round(accuracy)} m)` : ''}`);
-        } else {
-          toast('info', 'Logging standalone GPS point (not inside a known field).');
-        }
       },
       (err) => {
         hereBusy = false;
@@ -710,6 +983,85 @@
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
     );
+  }
+
+  function handleChooserLogEvent(): void {
+    if (!iAmHereChooserState) return;
+    const { coords, accuracy, containingField } = iAmHereChooserState;
+    iAmHereChooserState = null;
+    if (!containingField) {
+      toast('info', 'No field here — drop a pin instead.');
+      return;
+    }
+    // Delegate to the existing DetailPanel preset flow.
+    iAmHerePreset = {
+      location_id: containingField.id,
+      coords,
+      accuracy
+    };
+    selectedLocationId.set(containingField.id);
+  }
+
+  function handleChooserDropPin(): void {
+    if (!iAmHereChooserState) return;
+    pinDropState = {
+      coords: iAmHereChooserState.coords,
+      accuracy_m: iAmHereChooserState.accuracy,
+      containingField: iAmHereChooserState.containingField
+    };
+    iAmHereChooserState = null;
+  }
+
+  function handleChooserCancel(): void {
+    iAmHereChooserState = null;
+    if (herePulse && map?.hasLayer(herePulse)) {
+      map.removeLayer(herePulse);
+      herePulse = null;
+    }
+  }
+
+  async function handlePinDropSave(detail: {
+    title: string | null;
+    notes: string | null;
+    category: string | null;
+    status: import('$lib/schemas').PinStatus;
+    photos: import('$lib/schemas').PhotoRef[];
+  }): Promise<void> {
+    if (!pinDropState) return;
+    pinSaving = true;
+    try {
+      const created = await api.createPin({
+        coords: pinDropState.coords,
+        accuracy_m: pinDropState.accuracy_m ?? null,
+        title: detail.title,
+        notes: detail.notes,
+        category: detail.category,
+        status: detail.status,
+        photos: detail.photos,
+        location_id: pinDropState.containingField?.id ?? null
+      });
+      upsertPin(created);
+      pinDropState = null;
+      // Clear the pulse once the pin is planted — the marker replaces it.
+      if (herePulse && map?.hasLayer(herePulse)) {
+        map.removeLayer(herePulse);
+        herePulse = null;
+      }
+      toast('success', 'Pin dropped.');
+    } catch (err) {
+      console.error(err);
+      if (!$online) {
+        toast('warning', "You're offline — cannot save.");
+      } else {
+        toast('error', 'Could not save pin.');
+      }
+    } finally {
+      pinSaving = false;
+    }
+  }
+
+  function handlePinDropCancel(): void {
+    pinDropState = null;
   }
 
   function toggleLabels(): void {
@@ -728,6 +1080,19 @@
     settings.update((s) => (s ? { ...s, showLines: next } : s));
     renderAllLocations({ showLinesOverride: next });
     api.updateSettings({ showLines: next }).catch(() => {});
+  }
+
+  function togglePins(): void {
+    const next = !($settings?.showPins ?? true);
+    settings.update((s) => (s ? { ...s, showPins: next } : s));
+    // The reactive pin block handles visibility; persist the flag.
+    api.updateSettings({ showPins: next }).catch(() => {});
+  }
+
+  function toggleDonePins(): void {
+    const next = !($settings?.showDonePins ?? true);
+    settings.update((s) => (s ? { ...s, showDonePins: next } : s));
+    api.updateSettings({ showDonePins: next }).catch(() => {});
   }
 
   // Live measurement while drawing.
@@ -831,9 +1196,13 @@
     labelsVisible={labelsVisible}
     baseLayerChoice={baseLayerChoice}
     showLines={$settings?.showLines ?? false}
+    showPins={$settings?.showPins ?? true}
+    showDonePins={$settings?.showDonePins ?? true}
     on:toggleLabels={toggleLabels}
     on:toggleBase={toggleBaseLayer}
     on:toggleLines={toggleLines}
+    on:togglePins={togglePins}
+    on:toggleDonePins={toggleDonePins}
     on:fitAll={fitToAll}
   />
 
@@ -855,6 +1224,7 @@
     on:drawShed={startPlaceShed}
     on:drawPipe={startDrawPipe}
     on:drawDrain={startDrawDrain}
+    on:drawPin={startDrawPin}
     on:addBranch={addAnotherBranch}
     on:finishLine={finishLineDraft}
     on:edit={toggleEdit}
@@ -914,6 +1284,31 @@
 
   <IAmHereFab busy={hereBusy} on:click={iAmHere} />
 
+  {#if iAmHereChooserState}
+    <IAmHereChooser
+      coords={iAmHereChooserState.coords}
+      accuracy={iAmHereChooserState.accuracy}
+      containingField={iAmHereChooserState.containingField}
+      on:logEvent={handleChooserLogEvent}
+      on:dropPin={handleChooserDropPin}
+      on:cancel={handleChooserCancel}
+    />
+  {/if}
+
+  {#if pinDropState}
+    <PinDropModal
+      mode="create"
+      coords={pinDropState.coords}
+      accuracy_m={pinDropState.accuracy_m}
+      containingField={pinDropState.containingField}
+      saving={pinSaving}
+      on:save={(e) => handlePinDropSave(e.detail)}
+      on:cancel={handlePinDropCancel}
+    />
+  {/if}
+
+  <PinDetailSheet />
+
   <HiddenLinesChip on:toggleLines={toggleLines} />
 
   {#if !$online}
@@ -955,6 +1350,10 @@
     display: none;
   }
   :global(.shed-marker) {
+    background: transparent !important;
+    border: none !important;
+  }
+  :global(.pin-marker) {
     background: transparent !important;
     border: none !important;
   }

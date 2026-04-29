@@ -3,16 +3,20 @@ import type {
   BatchLocationPatchInput,
   CreateEventInput,
   CreateLocationInput,
+  CreatePinInput,
   CreateTaskInput,
   EventRecord,
   FieldUseInput,
   FieldUseRecord,
   LocationRecord,
   PhotoRef,
+  PinRecord,
+  PinStatus,
   TaskRecord,
   UpdateEventInput,
   UpdateFieldUseInput,
   UpdateLocationInput,
+  UpdatePinInput,
   UpdateTaskInput
 } from '$lib/schemas';
 
@@ -209,6 +213,34 @@ export const api = {
     return doFetch(`/api/tasks/${id}/complete`, { method: 'POST' });
   },
 
+  // ---- Pins -------------------------------------------------------------
+  listPins(
+    params: Partial<{ status: PinStatus; category: string; location: string; counts: boolean }> = {}
+  ): Promise<{
+    items: PinRecord[];
+    counts?: { todo: number; done: number; note: number };
+  }> {
+    const q = new URLSearchParams();
+    if (params.status) q.set('status', params.status);
+    if (params.category) q.set('category', params.category);
+    if (params.location) q.set('location', params.location);
+    if (params.counts) q.set('counts', '1');
+    const qs = q.toString();
+    return doFetch(`/api/pins${qs ? `?${qs}` : ''}`);
+  },
+  getPin(id: string): Promise<PinRecord> {
+    return doFetch(`/api/pins/${id}`);
+  },
+  createPin(input: CreatePinInput): Promise<PinRecord> {
+    return doFetch('/api/pins', { method: 'POST', body: JSON.stringify(input) });
+  },
+  updatePin(id: string, patch: UpdatePinInput): Promise<PinRecord> {
+    return doFetch(`/api/pins/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  },
+  deletePin(id: string): Promise<{ ok: true }> {
+    return doFetch(`/api/pins/${id}`, { method: 'DELETE' });
+  },
+
   // ---- Settings ---------------------------------------------------------
   getSettings(): Promise<import('$lib/schemas').UserSettings> {
     return doFetch('/api/settings');
@@ -233,7 +265,13 @@ export const api = {
   },
   importAll(payload: unknown): Promise<{
     ok: true;
-    counts: { locations: number; events: number; field_uses: number; tasks: number };
+    counts: {
+      locations: number;
+      events: number;
+      field_uses: number;
+      tasks: number;
+      pins: number;
+    };
   }> {
     return doFetch('/api/import', { method: 'POST', body: JSON.stringify(payload) });
   }
