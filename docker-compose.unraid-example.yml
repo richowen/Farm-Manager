@@ -29,8 +29,9 @@ services:
       retries: 5
 
   app:
-    # Replace <you> with your GitHub org/user after you first publish a release.
-    image: ghcr.io/<you>/farm-manager:latest
+    # Replace YOURUSERNAME with your GitHub username, e.g. ghcr.io/jsmith/farm-manager:latest
+    # After first publish, check: github.com/YOURUSERNAME → Packages → farm-manager → make Public
+    image: ghcr.io/YOURUSERNAME/farm-manager:latest
     container_name: farm-manager
     restart: unless-stopped
     depends_on:

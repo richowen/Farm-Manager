@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>farm-manager</Name>
+  <!-- Replace YOURUSERNAME with your actual GitHub username, e.g. ghcr.io/jsmith/farm-manager:latest -->
   <Repository>ghcr.io/YOURUSERNAME/farm-manager:latest</Repository>
   <Registry>https://ghcr.io/</Registry>
   <Network>farm-manager</Network>
