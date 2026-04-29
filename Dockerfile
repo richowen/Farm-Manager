@@ -8,9 +8,12 @@ RUN apk add --no-cache python3 make g++ libc6-compat
 
 WORKDIR /app
 
-# Install deps (including dev) for the build
+# Install deps (including dev) for the build.
+# Using npm install rather than npm ci so the lock file generated on a
+# different Node version (e.g. Node 25 locally vs Node 20 in Docker) doesn't
+# cause a version-mismatch failure. The git tag already pins the source.
 COPY package.json package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN npm install --no-audit --no-fund
 
 # Copy sources and build
 COPY . .
