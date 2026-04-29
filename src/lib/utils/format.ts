@@ -27,6 +27,24 @@ export function formatArea(
   return `${formatAc(ha)} (${formatHa(ha)})`;
 }
 
+/** Format a length in metres. Shows "123 m" under 1 km, "1.23 km" above. */
+export function formatLength(m: number | null | undefined): string {
+  if (m === null || m === undefined || Number.isNaN(m)) return '—';
+  if (m < 1000) return `${Math.round(m)} m`;
+  return `${(m / 1000).toFixed(2)} km`;
+}
+
+/** Human-readable duration for a start/end pair, e.g. "43 days", "3 weeks". */
+export function formatDuration(startIso: string, endIso: string | null): string {
+  const start = new Date(startIso).getTime();
+  const end = endIso ? new Date(endIso).getTime() : Date.now();
+  const days = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+  if (days < 14) return `${days} day${days === 1 ? '' : 's'}`;
+  if (days < 60) return `${Math.round(days / 7)} weeks`;
+  if (days < 730) return `${Math.round(days / 30)} months`;
+  return `${(days / 365).toFixed(1)} years`;
+}
+
 export function formatDate(iso: string, fmt = 'dd/MM/yyyy'): string {
   return dfFormat(parseISO(iso), fmt, { locale: enGB });
 }

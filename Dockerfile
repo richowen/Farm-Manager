@@ -3,7 +3,9 @@
 # ---- Build stage ------------------------------------------------------------
 FROM node:20-alpine AS build
 
-# argon2 needs a C toolchain to compile its native addon
+# argon2 needs a C toolchain to compile its native addon; sharp ships prebuilt
+# binaries for both linux/amd64 musl and linux/arm64 musl so we don't need
+# libvips-dev here.
 RUN apk add --no-cache python3 make g++ libc6-compat
 
 WORKDIR /app
@@ -25,12 +27,15 @@ RUN npm prune --omit=dev
 # ---- Runtime stage ----------------------------------------------------------
 FROM node:20-alpine AS runtime
 
-# argon2's prebuilt binaries need libc compatibility on alpine
-RUN apk add --no-cache libc6-compat tini curl
+# argon2's prebuilt binaries need libc compatibility on alpine.
+# `vips` is the runtime counterpart that sharp's prebuilt binary dlopen()s —
+# including it ensures photo processing works on arm64-musl.
+RUN apk add --no-cache libc6-compat tini curl vips
 
 ENV NODE_ENV=production \
     PORT=3000 \
-    HOST=0.0.0.0
+    HOST=0.0.0.0 \
+    UPLOAD_DIR=/data/uploads
 
 WORKDIR /app
 
@@ -40,6 +45,12 @@ COPY --from=build --chown=app:app /app/build ./build
 COPY --from=build --chown=app:app /app/node_modules ./node_modules
 COPY --from=build --chown=app:app /app/package.json ./package.json
 COPY --from=build --chown=app:app /app/db ./db
+
+# Create the uploads dir owned by the app user. VOLUME so that bind-mounting
+# a host folder at run time just works; otherwise photos land on the layer
+# and disappear on container recreate.
+RUN mkdir -p /data/uploads && chown -R app:app /data
+VOLUME ["/data/uploads"]
 
 USER app
 

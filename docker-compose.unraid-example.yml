@@ -7,7 +7,7 @@
 #
 # Usage:
 #   1. Copy .env.example to /mnt/user/appdata/farm-manager/.env and fill in.
-#   2. mkdir -p /mnt/user/appdata/farm-manager/db
+#   2. mkdir -p /mnt/user/appdata/farm-manager/db /mnt/user/appdata/farm-manager/uploads
 #   3. Install the Compose Manager plugin from Community Apps and point it at
 #      this file (or `docker compose --env-file .env -f docker-compose.unraid-example.yml up -d`).
 
@@ -43,7 +43,13 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
       ORIGIN: ${ORIGIN:-}
       PUBLIC_APP_NAME: ${PUBLIC_APP_NAME:-Farm Manager}
+      UPLOAD_DIR: /data/uploads
+      UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-10}
+      PROTOCOL_HEADER: ${PROTOCOL_HEADER:-}
+      HOST_HEADER: ${HOST_HEADER:-}
       NODE_ENV: production
     ports:
       # Change the left-hand side if 3000 is already taken on your Unraid host.
       - '3000:3000'
+    volumes:
+      - /mnt/user/appdata/farm-manager/uploads:/data/uploads

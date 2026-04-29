@@ -23,6 +23,7 @@
       event_type: EventRecord['event_type'];
       notes: string;
       metadata: Record<string, unknown>;
+      photos: EventRecord['photos'];
     }
   ): Promise<void> {
     try {
@@ -30,7 +31,8 @@
         occurred_at: detail.occurred_at,
         event_type: detail.event_type,
         notes: detail.notes,
-        metadata: detail.metadata
+        metadata: detail.metadata,
+        photos: detail.photos
       };
       const updated = await api.updateEvent(event.id, patch);
       dispatch('updated', updated);
@@ -87,6 +89,20 @@
           <p class="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
             {event.notes}
           </p>
+        {/if}
+        {#if event.photos && event.photos.length > 0}
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            {#each event.photos as p}
+              <a
+                href={`/uploads/${p.path}`}
+                target="_blank"
+                rel="noreferrer"
+                class="block h-14 w-14 overflow-hidden rounded-md ring-1 ring-slate-200 dark:ring-slate-600"
+              >
+                <img src={`/uploads/${p.path}`} alt="" class="h-full w-full object-cover" loading="lazy" />
+              </a>
+            {/each}
+          </div>
         {/if}
         <div class="mt-1 flex gap-3 text-xs">
           <button

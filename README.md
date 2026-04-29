@@ -1,17 +1,24 @@
 # Farm Manager
 
-A self-hosted, installable PWA for drawing and managing fields and sheds on a
-satellite map, and logging timestamped events (fertilizer, slurry, cattle in/
-out, silage, reseed, …) against each one.
+A self-hosted, installable PWA for drawing and managing fields, sheds, and
+lines on a satellite map, logging timestamped events (fertilizer, slurry,
+cattle in/out, silage, reseed, …) with photos, tracking field use history
+(grazing / mowing / …), and managing tasks with a feed that plugs into
+Google / Apple / Outlook Calendar.
 
 - **Stack:** SvelteKit (Node adapter) + PostgreSQL/PostGIS
 - **Map:** Leaflet + Esri World Imagery (no API key) with an OSM fallback
-- **Draw/edit:** Leaflet-Geoman
+- **Draw/edit:** Leaflet-Geoman (fields, lines, sheds), multi-select with
+  rectangle lasso, colour-by-current-use toggle
+- **Photos:** `sharp` pipeline — strips EXIF, auto-rotates, downscales
+  >2000 px, re-encodes JPEG q85; served via auth-gated `/uploads/*`
+- **Calendar:** read-only iCalendar feed at `/calendar.ics?token=…` for
+  tasks, with RRULE mapping for weekly / monthly / yearly recurrence
 - **Auth:** single-user, env-configured password, signed-cookie session
 - **Data:** Postgres with PostGIS; geometry stored as `GEOGRAPHY(_, 4326)`
-  so area calculations are in metres without reprojection
-- **PWA:** installable app shell with runtime tile caching for recently-viewed
-  areas (online-first; writes require a network)
+  so area/length calculations are in metres without reprojection
+- **PWA:** installable app shell with runtime tile caching and a mobile
+  bottom-tab bar (Map / Timeline / Tasks / More)
 
 ## Quick start (any Docker host)
 
@@ -19,13 +26,18 @@ out, silage, reseed, …) against each one.
    - `DB_PASSWORD` — Postgres password
    - `APP_PASSWORD` — the password you'll use to log in to the app
    - `SESSION_SECRET` — generate with `openssl rand -hex 32`
-   - `ORIGIN` (recommended) — e.g. `https://farm.example.com` if reverse-proxied
+   - `ORIGIN` — **required**, e.g. `http://192.168.1.81:3000` or
+     `https://farm.example.com`
 2. `docker compose up -d`
 3. Browse to `http://<host>:3000`, log in with `APP_PASSWORD`, and draw your
    first field.
 
 The database migrations (including `CREATE EXTENSION postgis`) run
 automatically on first boot, so there's no manual setup step.
+
+Photo uploads are written to `/data/uploads` inside the container, backed by
+the `farm_uploads` named volume. The compose file also mounts this volume by
+default.
 
 ## Self-hosting on Unraid
 
@@ -44,6 +56,7 @@ The short version:
    ```
    docker network create farm-manager
    mkdir -p /mnt/user/appdata/farm-manager/db
+   mkdir -p /mnt/user/appdata/farm-manager/uploads
    openssl rand -hex 32    # copy the output — this is your SESSION_SECRET
    ```
 2. **Add container** → fill from `farm-manager-db.xml`
@@ -51,14 +64,15 @@ The short version:
    network `farm-manager`, bind `POSTGRES_PASSWORD`).
 3. **Add container** → fill from `farm-manager-app.xml`
    (repository `ghcr.io/<you>/farm-manager:latest`, network `farm-manager`,
-   set `DATABASE_URL`, `APP_PASSWORD`, `SESSION_SECRET`).
+   bind `/data/uploads` → `/mnt/user/appdata/farm-manager/uploads`, set
+   `DATABASE_URL`, `APP_PASSWORD`, `SESSION_SECRET`, `ORIGIN`).
 4. Browse to `http://<unraid-ip>:3000`.
 
 ### Option B — Compose Manager plugin
 
 1. Install the **Compose Manager** plugin from Community Apps.
-2. Create `/mnt/user/appdata/farm-manager/` and copy in
-   `docker-compose.unraid-example.yml` and your `.env`.
+2. Create `/mnt/user/appdata/farm-manager/` (plus `db/` and `uploads/` inside)
+   and copy in `docker-compose.unraid-example.yml` and your `.env`.
 3. Replace `ghcr.io/<you>/farm-manager:latest` with the image tag matching
    your repo (or build locally and push).
 4. Start the stack from the plugin UI.
@@ -67,10 +81,37 @@ The short version:
 
 - **Full logical backup (recommended):** the Settings page has a
   "Download full backup (.json)" button that produces a single JSON file
-  containing all locations, events, and settings. Restore via the same page.
+  containing all locations, events, field-use history, tasks, and settings
+  (format `v2`). Restore via the same page. v1 backups (from 0.1) still
+  import cleanly.
+- **Photos** live on disk in the uploads volume and are *not* in the JSON
+  export. Back up `/mnt/user/appdata/farm-manager/uploads/` (on Unraid via
+  the Appdata Backup plugin, or the compose `farm_uploads` volume).
 - **Database dump:** `docker exec -t farm-manager-db pg_dumpall -U farm > dump.sql`
-- **Bind-mount snapshot:** `/mnt/user/appdata/farm-manager/db/` contains the
-  Postgres data directory when using `docker-compose.unraid-example.yml`.
+
+## Subscribing to tasks from Google / Apple / Outlook Calendar
+
+Farm Manager exposes your open tasks (and recently-completed ones from the
+last 30 days) as a read-only iCalendar feed.
+
+1. Go to **Settings → Calendar feed** and click **Generate feed URL**.
+2. Copy the URL — it looks like
+   `https://farm.example.com/calendar.ics?token=…`.
+3. Paste it into your calendar app:
+   - **Google Calendar** (desktop): Other calendars → `+` → *From URL* →
+     paste → Add
+   - **Apple Calendar**: File → *New Calendar Subscription* → paste
+   - **Outlook**: Add calendar → *Subscribe from web* → paste
+
+Notes:
+- Calendar apps poll the feed at their own cadence (hours, not minutes).
+- The feed is **read-only**: ticking a task done in your calendar does *not*
+  mark it done in Farm Manager. Use the `/tasks` page (add it to your home
+  screen for quick access).
+- Anyone with the URL can read your tasks. Keep it private — rotate or
+  disable the token any time from the same Settings section.
+- The URL only works if `ORIGIN` is set so the embedded deep-links
+  (`Open in Farm Manager: …/tasks#<id>`) resolve.
 
 ## Development
 
@@ -83,27 +124,37 @@ docker run --rm -d --name farm-pg -e POSTGRES_USER=farm -e POSTGRES_PASSWORD=far
 export DATABASE_URL=postgres://farm:farm@127.0.0.1:5432/farm
 export APP_PASSWORD=dev
 export SESSION_SECRET=$(openssl rand -hex 32)
+export ORIGIN=http://localhost:5173
 
 npm install
 npm run dev          # Vite dev server on :5173
-npm run test:unit    # Vitest unit tests
+npm run test:unit    # Vitest unit tests (schemas, iCal, recurrence, geometry)
 npm run build && npm run preview  # production build smoke test
 npm run test:e2e     # Playwright smoke tests
 ```
 
 ### Data model
 
-- `locations(id, kind, name, color, notes, geom, area_ha, ...)` — unified table
-  for both fields and sheds; `kind = 'field' | 'shed'`.
-- `events(id, location_id, occurred_at, event_type, notes, metadata, ...)` —
-  timestamped entries; `metadata` is `jsonb` for event-type-specific extras
-  (e.g. `{ product, rate_kg_ha }` for fertilizer) without schema churn.
-- `settings(id=1, data, password_hash)` — single-row user preferences plus an
-  optional hashed password override set from the Settings page.
+- `locations(id, kind, name, color, notes, tags, geom, area_ha, …)` —
+  unified table for fields, sheds, and lines; `kind = 'field' | 'shed' |
+  'line'`. Lines store a `LineString`; area_ha is NULL for shed/line;
+  length_m is derived at SELECT time for lines via `ST_Length(geom)`.
+- `field_uses(id, location_id, use_type, started_at, ended_at, notes,
+  metadata, …)` — history of use periods; a partial unique index on
+  `location_id WHERE ended_at IS NULL` enforces one open period per field.
+- `events(id, location_id?, occurred_at, event_type, notes, metadata,
+  photos, batch_id, …)` — `location_id` is now nullable for standalone GPS
+  events; `photos` is a JSONB array of `{path, w, h, size}` refs; `batch_id`
+  groups events created together in a multi-field batch.
+- `tasks(id, title, notes, due_at, location_id, done_at, recurrence, …)` —
+  one row per task; completing a recurring one inserts the next row via the
+  `nextOccurrence` helper.
+- `settings(id=1, data, password_hash)` — single-row preferences (use type
+  list, use colours, iCal feed token, …) plus an optional hashed password
+  override.
 
 All geometries are transported as GeoJSON. On the way in/out of Postgres we
-use `ST_GeomFromGeoJSON` / `ST_AsGeoJSON` at the repository boundary. Fields
-use `Polygon`/`MultiPolygon`; sheds use `Point`.
+use `ST_GeomFromGeoJSON` / `ST_AsGeoJSON` at the repository boundary.
 
 ### Event types
 
@@ -123,8 +174,11 @@ Per the original requirements:
 - Medicine books, health records
 - APHA / BCMS movement reporting
 - Statutory compliance exports
+- Two-way Google Calendar sync (iCal feed is read-only)
+- Push notifications (out of scope for v0.2 — may come in v0.3)
 
 Cattle movement events are headcount-only (stored in `metadata.count`).
+"Mob" is stored as free text on grazing field_use metadata.
 
 ## Tiles and terms of service
 

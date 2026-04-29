@@ -16,7 +16,18 @@
       class:bg-amber-600={t.kind === 'warning'}
     >
       <div class="flex items-start justify-between gap-3">
-        <span>{t.message}</span>
+        <span class="flex-1">{t.message}</span>
+        {#if t.action}
+          <button
+            class="rounded-md bg-white/15 px-2 py-0.5 text-xs font-semibold text-white hover:bg-white/30"
+            on:click={() => {
+              t.action?.onClick();
+              dismissToast(t.id);
+            }}
+          >
+            {t.action.label}
+          </button>
+        {/if}
         <button
           class="opacity-70 hover:opacity-100"
           aria-label="Dismiss"

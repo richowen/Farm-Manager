@@ -157,7 +157,7 @@
             <li class="p-3">
               <a
                 class="flex items-start gap-3 no-underline"
-                href="/?location={e.location_id}"
+                href={e.location_id ? `/?location=${e.location_id}` : '/'}
               >
                 <EventIcon type={e.event_type} size="sm" />
                 <div class="min-w-0 flex-1">
@@ -172,7 +172,9 @@
                     </time>
                   </div>
                   <p class="text-xs text-slate-600 dark:text-slate-400">
-                    {locationsById.get(e.location_id)?.name ?? 'Unknown location'}
+                    {e.location_id
+                      ? (locationsById.get(e.location_id)?.name ?? 'Unknown location')
+                      : 'No location'}
                   </p>
                   {#if e.notes}
                     <p class="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">

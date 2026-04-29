@@ -1,15 +1,36 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { selectedLocation, selectedLocationId, upsertLocation, toast } from '$lib/stores';
+  import { selectedLocation, selectedLocationId, upsertLocation, toast, locations } from '$lib/stores';
   import { api, ApiError } from '$lib/client/api';
-  import { formatArea, formatDate } from '$lib/utils/format';
-  import { EVENT_TYPES, type EventRecord } from '$lib/schemas';
+  import {
+    formatArea,
+    formatDate,
+    formatLength,
+    formatRelative
+  } from '$lib/utils/format';
+  import {
+    EVENT_TYPES,
+    type EventRecord,
+    type LocationRecord,
+    type PhotoRef
+  } from '$lib/schemas';
   import EventRow from './EventRow.svelte';
   import EventForm from './EventForm.svelte';
+  import FieldUsePanel from './FieldUsePanel.svelte';
+  import TagInput from './TagInput.svelte';
 
-  const dispatch = createEventDispatcher<{ locationDeleted: { id: string } }>();
+  export let iAmHerePreset: {
+    location_id: string | null;
+    coords: [number, number];
+    accuracy: number | null;
+  } | null = null;
 
-  let tab: 'events' | 'details' | 'geometry' = 'events';
+  const dispatch = createEventDispatcher<{
+    locationDeleted: { id: string };
+    iAmHereEventCreated: { location_id: string | null };
+  }>();
+
+  let tab: 'events' | 'details' | 'use' | 'geometry' = 'events';
 
   // Event list state
   let events: EventRecord[] = [];
@@ -24,14 +45,16 @@
   let filterFrom = '';
   let filterTo = '';
 
-  // Edit name/colour/notes
+  // Edit name/colour/notes/tags
   let editingMeta = false;
   let metaName = '';
   let metaColor = '';
   let metaNotes = '';
+  let metaTags: string[] = [];
 
-  const TABS: Array<{ id: 'events' | 'details' | 'geometry'; label: string }> = [
+  const TABS_BASE: Array<{ id: 'events' | 'details' | 'use' | 'geometry'; label: string }> = [
     { id: 'events', label: 'Events' },
+    { id: 'use', label: 'Use' },
     { id: 'details', label: 'Details' },
     { id: 'geometry', label: 'Geometry' }
   ];
@@ -40,7 +63,12 @@
     '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280'
   ];
 
-  $: loc = $selectedLocation;
+  $: loc = $selectedLocation as LocationRecord | null;
+  // Show the Use tab only for fields.
+  $: TABS = TABS_BASE.filter((t) => t.id !== 'use' || loc?.kind === 'field');
+
+  $: tagSuggestions = Array.from(new Set($locations.flatMap((l) => l.tags ?? []))).sort();
+
   $: if (loc && loc.id !== currentId) {
     currentId = loc.id;
     events = [];
@@ -49,8 +77,14 @@
     metaName = loc.name;
     metaColor = loc.color ?? '';
     metaNotes = loc.notes ?? '';
+    metaTags = (loc.tags ?? []).slice();
     editingMeta = false;
     loadEvents();
+  }
+
+  // Auto-open an "I am here" add form when a preset arrives for this location.
+  $: if (loc && iAmHerePreset && iAmHerePreset.location_id === loc.id && !adding) {
+    adding = true;
   }
 
   async function loadEvents(reset = true): Promise<void> {
@@ -62,7 +96,6 @@
       if (filterTypes.size > 0) params.type = Array.from(filterTypes).join(',');
       if (filterFrom) params.from = new Date(filterFrom).toISOString();
       if (filterTo) {
-        // Include the whole 'to' day.
         const d = new Date(filterTo);
         d.setHours(23, 59, 59, 999);
         params.to = d.toISOString();
@@ -84,12 +117,30 @@
     event_type: EventRecord['event_type'];
     notes: string;
     metadata: Record<string, unknown>;
+    photos: PhotoRef[];
   }): Promise<void> {
     if (!loc) return;
     try {
-      const created = await api.createEvent(loc.id, detail);
+      // If this came from "I am here" we'd like to stash the GPS coords into
+      // metadata so the row remembers how it was logged.
+      const metadata = { ...detail.metadata };
+      if (iAmHerePreset && iAmHerePreset.location_id === loc.id) {
+        metadata.logged_from = 'i_am_here';
+        metadata.coords = iAmHerePreset.coords;
+        if (iAmHerePreset.accuracy !== null) metadata.accuracy_m = iAmHerePreset.accuracy;
+      }
+      const created = await api.createEvent(loc.id, {
+        occurred_at: detail.occurred_at,
+        event_type: detail.event_type,
+        notes: detail.notes,
+        metadata,
+        photos: detail.photos
+      });
       events = [created, ...events];
       adding = false;
+      if (iAmHerePreset && iAmHerePreset.location_id === loc.id) {
+        dispatch('iAmHereEventCreated', { location_id: loc.id });
+      }
       toast('success', 'Event added.');
     } catch (err) {
       console.error(err);
@@ -103,7 +154,8 @@
       const updated = await api.updateLocation(loc.id, {
         name: metaName.trim() || loc.name,
         color: metaColor || null,
-        notes: metaNotes || null
+        notes: metaNotes || null,
+        tags: metaTags
       });
       upsertLocation(updated);
       editingMeta = false;
@@ -116,23 +168,14 @@
 
   async function deleteLocation(): Promise<void> {
     if (!loc) return;
-    if (
-      !confirm(
-        `Delete "${loc.name}" and all its events? This cannot be undone.`
-      )
-    ) {
-      return;
-    }
+    if (!confirm(`Delete "${loc.name}" and all its events? This cannot be undone.`)) return;
     try {
       await api.deleteLocation(loc.id);
       dispatch('locationDeleted', { id: loc.id });
       toast('success', 'Deleted.');
     } catch (err) {
-      if (err instanceof ApiError) {
-        toast('error', `Delete failed (${err.status}).`);
-      } else {
-        toast('error', 'Delete failed.');
-      }
+      if (err instanceof ApiError) toast('error', `Delete failed (${err.status}).`);
+      else toast('error', 'Delete failed.');
     }
   }
 
@@ -146,7 +189,6 @@
     filterTypes = filterTypes;
     loadEvents();
   }
-
   function clearFilters(): void {
     filterTypes.clear();
     filterTypes = filterTypes;
@@ -154,11 +196,27 @@
     filterTo = '';
     loadEvents();
   }
+
+  async function refreshLocationFromServer(): Promise<void> {
+    if (!loc) return;
+    try {
+      const fresh = await api.getLocation(loc.id);
+      upsertLocation(fresh);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  $: currentUse = loc?.current_use ?? null;
+  $: hint =
+    iAmHerePreset && iAmHerePreset.location_id === loc?.id && iAmHerePreset.accuracy
+      ? `Logged from your GPS (±${Math.round(iAmHerePreset.accuracy)} m)`
+      : null;
 </script>
 
 {#if loc}
   <aside
-    class="detail-panel fixed inset-x-0 bottom-0 top-auto z-[1500] max-h-[80vh] overflow-hidden rounded-t-2xl bg-white shadow-2xl ring-1 ring-black/10 dark:bg-slate-800 sm:right-0 sm:left-auto sm:top-0 sm:max-h-none sm:h-screen sm:w-[420px] sm:rounded-none sm:rounded-l-2xl"
+    class="detail-panel fixed inset-x-0 bottom-0 top-auto z-[1500] max-h-[85vh] overflow-hidden rounded-t-2xl bg-white shadow-2xl ring-1 ring-black/10 dark:bg-slate-800 sm:right-0 sm:left-auto sm:top-0 sm:max-h-none sm:h-screen sm:w-[420px] sm:rounded-none sm:rounded-l-2xl"
   >
     <div class="flex h-full flex-col">
       <!-- Header -->
@@ -172,9 +230,36 @@
               <h2 class="truncate text-lg font-semibold">{loc.name}</h2>
               <span class="text-xs uppercase tracking-wide text-slate-500">{loc.kind}</span>
             </div>
+
+            {#if currentUse}
+              <div class="mt-1">
+                <span
+                  class="inline-flex items-center gap-1.5 rounded-full bg-pasture-600/15 px-2 py-0.5 text-xs font-medium text-pasture-800 dark:bg-pasture-600/25 dark:text-pasture-200"
+                >
+                  <span class="h-1.5 w-1.5 rounded-full bg-pasture-600"></span>
+                  {currentUse.use_type}
+                </span>
+                <span class="ml-1 text-xs text-slate-500">since {formatDate(currentUse.started_at)}</span>
+              </div>
+            {/if}
+
+            {#if loc.tags && loc.tags.length > 0}
+              <div class="mt-1 flex flex-wrap gap-1">
+                {#each loc.tags as tag}
+                  <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                    #{tag}
+                  </span>
+                {/each}
+              </div>
+            {/if}
+
             {#if loc.kind === 'field'}
-              <p class="text-sm text-slate-600 dark:text-slate-400">
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
                 {formatArea(loc.area_ha, 'ha')}
+              </p>
+            {:else if loc.kind === 'line'}
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                {formatLength(loc.length_m)}
               </p>
             {/if}
             {#if loc.notes}
@@ -208,6 +293,7 @@
                   ></button>
                 {/each}
               </div>
+              <TagInput bind:value={metaTags} suggestions={tagSuggestions} />
               <textarea
                 class="input"
                 rows="2"
@@ -260,6 +346,7 @@
             <div class="mb-3 rounded-md bg-slate-50 p-3 dark:bg-slate-700/50">
               <h3 class="mb-2 text-sm font-medium">New event</h3>
               <EventForm
+                hint={hint}
                 on:save={(e) => handleAddEvent(e.detail)}
                 on:cancel={() => (adding = false)}
               />
@@ -294,21 +381,11 @@
               <div class="flex gap-2 text-xs">
                 <label class="flex-1">
                   <span class="block text-slate-500">From</span>
-                  <input
-                    type="date"
-                    class="input !text-xs"
-                    bind:value={filterFrom}
-                    on:change={() => loadEvents()}
-                  />
+                  <input type="date" class="input !text-xs" bind:value={filterFrom} on:change={() => loadEvents()} />
                 </label>
                 <label class="flex-1">
                   <span class="block text-slate-500">To</span>
-                  <input
-                    type="date"
-                    class="input !text-xs"
-                    bind:value={filterTo}
-                    on:change={() => loadEvents()}
-                  />
+                  <input type="date" class="input !text-xs" bind:value={filterTo} on:change={() => loadEvents()} />
                 </label>
               </div>
               <button class="text-xs text-slate-500 hover:underline" on:click={clearFilters}>
@@ -347,6 +424,8 @@
               {eventsLoading ? 'Loading…' : 'Load older'}
             </button>
           {/if}
+        {:else if tab === 'use' && loc.kind === 'field'}
+          <FieldUsePanel loc={loc} on:changed={refreshLocationFromServer} />
         {:else if tab === 'details'}
           <dl class="space-y-3 text-sm">
             <div>
@@ -359,20 +438,23 @@
             </div>
             <div>
               <dt class="text-xs uppercase tracking-wide text-slate-500">Updated</dt>
-              <dd>{formatDate(loc.updated_at)}</dd>
+              <dd>{formatRelative(loc.updated_at)}</dd>
             </div>
             {#if loc.kind === 'field'}
               <div>
                 <dt class="text-xs uppercase tracking-wide text-slate-500">Area</dt>
                 <dd>{formatArea(loc.area_ha, 'ha')}</dd>
               </div>
+            {:else if loc.kind === 'line'}
+              <div>
+                <dt class="text-xs uppercase tracking-wide text-slate-500">Length</dt>
+                <dd>{formatLength(loc.length_m)}</dd>
+              </div>
             {/if}
           </dl>
         {:else if tab === 'geometry'}
           <p class="mb-2 text-sm text-slate-600 dark:text-slate-400">GeoJSON:</p>
-          <pre
-            class="max-h-[40vh] overflow-auto rounded-md bg-slate-50 p-2 text-xs dark:bg-slate-900"
-          >{JSON.stringify(loc.geometry, null, 2)}</pre>
+          <pre class="max-h-[40vh] overflow-auto rounded-md bg-slate-50 p-2 text-xs dark:bg-slate-900">{JSON.stringify(loc.geometry, null, 2)}</pre>
         {/if}
       </div>
     </div>
@@ -380,7 +462,6 @@
 {/if}
 
 <style>
-  /* On mobile, add a drag handle to suggest it's a sheet. */
   .detail-panel::before {
     content: '';
     display: block;

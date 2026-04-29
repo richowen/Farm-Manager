@@ -1,5 +1,5 @@
 import { writable, derived, type Writable } from 'svelte/store';
-import type { LocationRecord } from '$lib/schemas';
+import type { LocationKind, LocationRecord, UserSettings } from '$lib/schemas';
 
 // ---- Locations --------------------------------------------------------------
 export const locations: Writable<LocationRecord[]> = writable([]);
@@ -15,11 +15,15 @@ export function upsertLocation(loc: LocationRecord): void {
   });
 }
 
+export function upsertManyLocations(list: LocationRecord[]): void {
+  for (const l of list) upsertLocation(l);
+}
+
 export function removeLocation(id: string): void {
   locations.update((list) => list.filter((l) => l.id !== id));
 }
 
-// ---- Selection --------------------------------------------------------------
+// ---- Single selection (details panel) --------------------------------------
 export const selectedLocationId = writable<string | null>(null);
 
 export const selectedLocation = derived(
@@ -27,9 +31,61 @@ export const selectedLocation = derived(
   ([$locs, $id]) => ($id ? $locs.find((l) => l.id === $id) ?? null : null)
 );
 
+// ---- Multi-select (batch actions) -------------------------------------------
+/**
+ * Set of location IDs currently in the multi-select. `multiSelectMode` is a
+ * separate flag because we want a dedicated toggle button — clicks on features
+ * only add to the set when the mode is active; otherwise they open the detail
+ * panel as normal.
+ */
+export const multiSelectMode = writable<boolean>(false);
+export const selectedIds = writable<Set<string>>(new Set<string>());
+
+export function toggleSelection(id: string): void {
+  selectedIds.update((s) => {
+    const next = new Set(s);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+}
+export function addSelection(ids: string[]): void {
+  if (ids.length === 0) return;
+  selectedIds.update((s) => {
+    const next = new Set(s);
+    for (const id of ids) next.add(id);
+    return next;
+  });
+}
+export function clearSelection(): void {
+  selectedIds.set(new Set<string>());
+}
+
+export const selectionCount = derived(selectedIds, ($s) => $s.size);
+
+/** The unique `LocationKind` if all selected items share one, else null. */
+export const selectionKind = derived(
+  [selectedIds, locations],
+  ([$ids, $locs]): LocationKind | null => {
+    if ($ids.size === 0) return null;
+    let kind: LocationKind | null = null;
+    for (const id of $ids) {
+      const loc = $locs.find((l) => l.id === id);
+      if (!loc) continue;
+      if (kind === null) kind = loc.kind;
+      else if (kind !== loc.kind) return null;
+    }
+    return kind;
+  }
+);
+
 // ---- Draw mode --------------------------------------------------------------
-export type DrawMode = 'idle' | 'field' | 'shed' | 'edit';
+export type DrawMode = 'idle' | 'field' | 'shed' | 'line' | 'edit';
 export const drawMode = writable<DrawMode>('idle');
+
+// ---- Map colouring ----------------------------------------------------------
+export type ColorMode = 'location' | 'use';
+export const colorMode = writable<ColorMode>('location');
 
 // ---- Online/offline ---------------------------------------------------------
 export const online = writable<boolean>(
@@ -45,19 +101,27 @@ export interface Toast {
   id: number;
   kind: 'info' | 'success' | 'error' | 'warning';
   message: string;
+  /** Optional action — if provided, rendered as a button on the toast. */
+  action?: { label: string; onClick: () => void };
 }
 
 export const toasts = writable<Toast[]>([]);
 let _toastId = 0;
 
-export function toast(kind: Toast['kind'], message: string, ttlMs = 4000): void {
+export function toast(
+  kind: Toast['kind'],
+  message: string,
+  ttlMs = 4000,
+  action?: Toast['action']
+): number {
   const id = ++_toastId;
-  toasts.update((list) => [...list, { id, kind, message }]);
+  toasts.update((list) => [...list, { id, kind, message, action }]);
   if (ttlMs > 0) {
     setTimeout(() => {
       toasts.update((list) => list.filter((t) => t.id !== id));
     }, ttlMs);
   }
+  return id;
 }
 
 export function dismissToast(id: number): void {
@@ -65,5 +129,4 @@ export function dismissToast(id: number): void {
 }
 
 // ---- User settings (client-side cache) -------------------------------------
-import type { UserSettings } from '$lib/schemas';
 export const settings = writable<UserSettings | null>(null);

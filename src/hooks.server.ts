@@ -22,7 +22,13 @@ function startMigrations() {
   return migrated;
 }
 
-const PUBLIC_PATHS = new Set<string>(['/login', '/logout', '/healthz', '/manifest.webmanifest']);
+const PUBLIC_PATHS = new Set<string>([
+  '/login',
+  '/logout',
+  '/healthz',
+  '/manifest.webmanifest',
+  '/calendar.ics'
+]);
 const PUBLIC_API_PREFIXES = ['/api/auth/'];
 
 function isPublicPath(pathname: string): boolean {

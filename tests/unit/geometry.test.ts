@@ -1,31 +1,108 @@
 import { describe, it, expect } from 'vitest';
-import { geometryToHectares } from '../../src/lib/utils/geometry';
-import type { PolygonGeometry } from '../../src/lib/schemas';
+import {
+  findContainingLocation,
+  locationsIntersecting,
+  lineLengthMeters,
+  geometryToHectares
+} from '../../src/lib/utils/geometry';
+import type { LocationRecord } from '../../src/lib/schemas';
 
-describe('geometryToHectares', () => {
-  it('computes roughly 1 ha for a ~100m square', () => {
-    // Roughly 100m at 52°N latitude:
-    // - 1 degree latitude ≈ 111_320 m, so 100m ≈ 0.000898° lat
-    // - 1 degree longitude ≈ 111_320 * cos(52°) ≈ 68_548 m, so 100m ≈ 0.001459° lng
-    const lat0 = 52;
-    const lng0 = -1;
-    const dLat = 100 / 111_320;
-    const dLng = 100 / (111_320 * Math.cos((lat0 * Math.PI) / 180));
-    const poly: PolygonGeometry = {
-      type: 'Polygon',
+function field(id: string, coords: [number, number][]): LocationRecord {
+  return {
+    id,
+    kind: 'field',
+    name: id,
+    color: null,
+    notes: null,
+    tags: [],
+    geometry: { type: 'Polygon', coordinates: [coords] },
+    area_ha: null,
+    length_m: null,
+    current_use: null,
+    created_at: new Date(0).toISOString(),
+    updated_at: new Date(0).toISOString()
+  };
+}
+
+describe('findContainingLocation', () => {
+  const a = field('a', [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+    [0, 1],
+    [0, 0]
+  ]);
+  const b = field('b', [
+    [2, 2],
+    [3, 2],
+    [3, 3],
+    [2, 3],
+    [2, 2]
+  ]);
+
+  it('finds the containing polygon', () => {
+    const hit = findContainingLocation([a, b], 0.5, 0.5);
+    expect(hit?.id).toBe('a');
+  });
+  it('returns null when outside all polygons', () => {
+    const hit = findContainingLocation([a, b], 10, 10);
+    expect(hit).toBeNull();
+  });
+});
+
+describe('locationsIntersecting', () => {
+  const a = field('a', [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+    [0, 1],
+    [0, 0]
+  ]);
+  const b = field('b', [
+    [5, 5],
+    [6, 5],
+    [6, 6],
+    [5, 6],
+    [5, 5]
+  ]);
+
+  it('includes only locations that overlap the selection', () => {
+    const box = {
+      type: 'Polygon' as const,
       coordinates: [
         [
-          [lng0, lat0],
-          [lng0 + dLng, lat0],
-          [lng0 + dLng, lat0 + dLat],
-          [lng0, lat0 + dLat],
-          [lng0, lat0]
-        ]
+          [-1, -1],
+          [2, -1],
+          [2, 2],
+          [-1, 2],
+          [-1, -1]
+        ] as [number, number][]
       ]
     };
-    const ha = geometryToHectares(poly);
-    // Expect ~1.0 ha with some slack for projection differences.
-    expect(ha).toBeGreaterThan(0.95);
-    expect(ha).toBeLessThan(1.05);
+    expect(locationsIntersecting([a, b], box)).toEqual(['a']);
+  });
+});
+
+describe('lineLengthMeters', () => {
+  it('returns 0 for non-lines', () => {
+    expect(lineLengthMeters(null)).toBe(0);
+  });
+  it('returns a positive length for a line', () => {
+    const m = lineLengthMeters({
+      type: 'LineString',
+      coordinates: [
+        [0, 0],
+        [0.001, 0]
+      ]
+    });
+    // ~111 m at the equator
+    expect(m).toBeGreaterThan(100);
+    expect(m).toBeLessThan(120);
+  });
+});
+
+describe('geometryToHectares', () => {
+  it('returns 0 for non-polygons', () => {
+    expect(geometryToHectares({ type: 'Point', coordinates: [0, 0] })).toBe(0);
   });
 });

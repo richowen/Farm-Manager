@@ -26,9 +26,17 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
       ORIGIN: ${ORIGIN:-}
       PUBLIC_APP_NAME: ${PUBLIC_APP_NAME:-Farm Manager}
+      UPLOAD_DIR: /data/uploads
+      UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-10}
+      # Required when fronted by a reverse proxy that terminates TLS.
+      PROTOCOL_HEADER: ${PROTOCOL_HEADER:-}
+      HOST_HEADER: ${HOST_HEADER:-}
       NODE_ENV: production
     ports:
       - '3000:3000'
+    volumes:
+      - farm_uploads:/data/uploads
 
 volumes:
   farm_db:
+  farm_uploads:

@@ -1,10 +1,19 @@
 import type {
+  BatchEventInput,
+  BatchLocationPatchInput,
   CreateEventInput,
   CreateLocationInput,
+  CreateTaskInput,
   EventRecord,
+  FieldUseInput,
+  FieldUseRecord,
   LocationRecord,
+  PhotoRef,
+  TaskRecord,
   UpdateEventInput,
-  UpdateLocationInput
+  UpdateFieldUseInput,
+  UpdateLocationInput,
+  UpdateTaskInput
 } from '$lib/schemas';
 
 /**
@@ -26,11 +35,12 @@ async function doFetch<T>(input: RequestInfo, init: RequestInit = {}): Promise<T
     ...init,
     credentials: 'same-origin',
     headers: {
-      ...(init.body ? { 'content-type': 'application/json' } : {}),
+      ...(init.body && !(init.body instanceof FormData) ? { 'content-type': 'application/json' } : {}),
       accept: 'application/json',
       ...(init.headers ?? {})
     }
   });
+  if (res.status === 204) return undefined as unknown as T;
   const text = await res.text();
   const body = text ? safeJson(text) : null;
   if (!res.ok) {
@@ -53,6 +63,7 @@ function safeJson(text: string): unknown {
 }
 
 export const api = {
+  // ---- Locations --------------------------------------------------------
   listLocations(): Promise<{ items: LocationRecord[] }> {
     return doFetch('/api/locations');
   },
@@ -68,7 +79,36 @@ export const api = {
   deleteLocation(id: string): Promise<{ ok: true }> {
     return doFetch(`/api/locations/${id}`, { method: 'DELETE' });
   },
+  batchLocationsPatch(
+    input: BatchLocationPatchInput
+  ): Promise<{ items: LocationRecord[] }> {
+    return doFetch('/api/locations/batch', { method: 'PATCH', body: JSON.stringify(input) });
+  },
 
+  // ---- Field uses -------------------------------------------------------
+  listFieldUses(locationId: string): Promise<{ items: FieldUseRecord[] }> {
+    return doFetch(`/api/locations/${locationId}/uses`);
+  },
+  startFieldUse(locationId: string, input: FieldUseInput): Promise<FieldUseRecord> {
+    return doFetch(`/api/locations/${locationId}/uses`, {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+  },
+  updateFieldUse(id: string, input: UpdateFieldUseInput): Promise<FieldUseRecord> {
+    return doFetch(`/api/field-uses/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  },
+  endFieldUse(id: string, endedAt?: string): Promise<FieldUseRecord> {
+    return doFetch(`/api/field-uses/${id}/end`, {
+      method: 'POST',
+      body: JSON.stringify({ ended_at: endedAt })
+    });
+  },
+  deleteFieldUse(id: string): Promise<{ ok: true }> {
+    return doFetch(`/api/field-uses/${id}`, { method: 'DELETE' });
+  },
+
+  // ---- Events -----------------------------------------------------------
   listEvents(
     locationId: string,
     params: Partial<{ type: string; from: string; to: string; cursor: string; limit: number }> = {}
@@ -92,9 +132,40 @@ export const api = {
   deleteEvent(id: string): Promise<{ ok: true }> {
     return doFetch(`/api/events/${id}`, { method: 'DELETE' });
   },
+  createStandaloneEvent(input: CreateEventInput): Promise<EventRecord> {
+    return doFetch(`/api/events`, {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+  },
+  batchEvent(
+    input: BatchEventInput
+  ): Promise<{ batch_id: string; items: EventRecord[] }> {
+    return doFetch('/api/events/batch', { method: 'POST', body: JSON.stringify(input) });
+  },
+  deleteBatch(batchId: string): Promise<void> {
+    return doFetch(`/api/events/batch/${batchId}`, { method: 'DELETE' });
+  },
+  updateBatch(batchId: string, input: UpdateEventInput): Promise<{ items: EventRecord[] }> {
+    return doFetch(`/api/events/batch/${batchId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input)
+    });
+  },
+  getBatch(batchId: string): Promise<{ items: EventRecord[] }> {
+    return doFetch(`/api/events/batch/${batchId}`);
+  },
 
   timeline(
-    params: Partial<{ type: string; from: string; to: string; location: string; cursor: string; limit: number }> = {}
+    params: Partial<{
+      type: string;
+      from: string;
+      to: string;
+      location: string;
+      batch_id: string;
+      cursor: string;
+      limit: number;
+    }> = {}
   ): Promise<{ items: EventRecord[]; nextCursor: string | null }> {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
@@ -104,6 +175,41 @@ export const api = {
     return doFetch(`/api/timeline${qs ? `?${qs}` : ''}`);
   },
 
+  // ---- Photos -----------------------------------------------------------
+  uploadPhoto(file: File): Promise<PhotoRef> {
+    const fd = new FormData();
+    fd.append('file', file);
+    return doFetch('/api/uploads', { method: 'POST', body: fd });
+  },
+
+  // ---- Tasks ------------------------------------------------------------
+  listTasks(
+    filter: 'open' | 'due' | 'overdue' | 'done' | 'all' = 'all',
+    withCounts = false
+  ): Promise<{
+    items: TaskRecord[];
+    counts?: { overdue: number; dueToday: number; open: number };
+  }> {
+    const q = new URLSearchParams({ filter });
+    if (withCounts) q.set('counts', '1');
+    return doFetch(`/api/tasks?${q.toString()}`);
+  },
+  createTask(input: CreateTaskInput): Promise<TaskRecord> {
+    return doFetch('/api/tasks', { method: 'POST', body: JSON.stringify(input) });
+  },
+  updateTask(id: string, input: UpdateTaskInput): Promise<TaskRecord> {
+    return doFetch(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+  },
+  deleteTask(id: string): Promise<{ ok: true }> {
+    return doFetch(`/api/tasks/${id}`, { method: 'DELETE' });
+  },
+  completeTask(
+    id: string
+  ): Promise<{ completed: TaskRecord; next: TaskRecord | null }> {
+    return doFetch(`/api/tasks/${id}/complete`, { method: 'POST' });
+  },
+
+  // ---- Settings ---------------------------------------------------------
   getSettings(): Promise<import('$lib/schemas').UserSettings> {
     return doFetch('/api/settings');
   },
@@ -112,6 +218,12 @@ export const api = {
   ): Promise<import('$lib/schemas').UserSettings> {
     return doFetch('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) });
   },
+  rotateIcalToken(): Promise<{ token: string }> {
+    return doFetch('/api/settings/ical-token', { method: 'POST' });
+  },
+  disableIcalToken(): Promise<{ ok: true }> {
+    return doFetch('/api/settings/ical-token', { method: 'DELETE' });
+  },
 
   exportAll(): Promise<Blob> {
     return fetch('/api/export', { credentials: 'same-origin' }).then((r) => {
@@ -119,7 +231,10 @@ export const api = {
       return r.blob();
     });
   },
-  importAll(payload: unknown): Promise<{ ok: true; counts: { locations: number; events: number } }> {
+  importAll(payload: unknown): Promise<{
+    ok: true;
+    counts: { locations: number; events: number; field_uses: number; tasks: number };
+  }> {
     return doFetch('/api/import', { method: 'POST', body: JSON.stringify(payload) });
   }
 };

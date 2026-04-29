@@ -1,13 +1,16 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
   import { EVENT_META, EVENT_TYPE_GROUPS } from '$lib/utils/event-types';
-  import { EVENT_TYPES, type EventRecord, type EventType } from '$lib/schemas';
+  import { EVENT_TYPES, type EventRecord, type EventType, type PhotoRef } from '$lib/schemas';
   import {
     fromDatetimeLocalInput,
     toDatetimeLocalInput
   } from '$lib/utils/format';
+  import PhotoInput from './PhotoInput.svelte';
 
   export let initial: EventRecord | null = null;
+  /** Optional pre-filled hint banner (e.g. "±8 m GPS accuracy"). */
+  export let hint: string | null = null;
 
   const dispatch = createEventDispatcher<{
     save: {
@@ -15,6 +18,7 @@
       event_type: EventType;
       notes: string;
       metadata: Record<string, unknown>;
+      photos: PhotoRef[];
     };
     cancel: void;
     delete: void;
@@ -28,8 +32,8 @@
   let metadata: Record<string, string | number> = {
     ...(initial?.metadata as Record<string, string | number> | undefined)
   };
+  let photos: PhotoRef[] = (initial?.photos ?? []) as PhotoRef[];
 
-  // Optional structured fields per event type — all stored in `metadata`.
   interface FieldDef {
     key: string;
     label: string;
@@ -109,11 +113,11 @@
       occurred_at: fromDatetimeLocalInput(occurredInput),
       event_type: eventType,
       notes,
-      metadata: cleanedMetadata
+      metadata: cleanedMetadata,
+      photos
     });
   }
 
-  // Group types for the select (for nicer UX).
   $: groupedTypes = EVENT_TYPE_GROUPS.map((g) => ({
     ...g,
     types: EVENT_TYPES.filter((t) => EVENT_META[t].group === g.id)
@@ -121,6 +125,11 @@
 </script>
 
 <div class="space-y-4">
+  {#if hint}
+    <p class="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-700">
+      {hint}
+    </p>
+  {/if}
   <div>
     <span class="label">When</span>
     <div class="flex flex-wrap gap-2">
@@ -192,6 +201,11 @@
       placeholder="Anything worth remembering…"
       maxlength="5000"
     ></textarea>
+  </div>
+
+  <div>
+    <span class="label">Photos</span>
+    <PhotoInput bind:value={photos} />
   </div>
 
   {#if error}

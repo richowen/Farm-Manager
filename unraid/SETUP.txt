@@ -12,27 +12,22 @@ can reach the database by name. Do this ONCE before adding
 either container.
 
 
-Step 1 — Create the shared Docker network
-------------------------------------------
+Step 1 — Create the shared Docker network + appdata folders
+-----------------------------------------------------------
 Open the Unraid web UI → Tools → Terminal, then paste:
 
     docker network create farm-manager
-
-You only ever need to run this once. The network persists across
-reboots.
-
-
-Step 2 — Create the database storage folder
---------------------------------------------
-Still in the terminal:
-
     mkdir -p /mnt/user/appdata/farm-manager/db
+    mkdir -p /mnt/user/appdata/farm-manager/uploads
+
+You only ever need to do this once. The network persists across
+reboots.
 
 Tip: if your server has a cache drive, put appdata there for
 better database performance.
 
 
-Step 3 — Generate a session secret
+Step 2 — Generate a session secret
 ------------------------------------
 You need a random 32-byte hex string for SESSION_SECRET.
 Generate one in the terminal:
@@ -40,21 +35,21 @@ Generate one in the terminal:
     openssl rand -hex 32
 
 Copy the output — you'll paste it into the app's template
-in Step 5.
+in Step 4.
 
 
-Step 4 — Add the database container
+Step 3 — Add the database container
 --------------------------------------
 a. In the Unraid Docker tab, click "Add Container".
 b. Scroll to the bottom and click "Load template from a file".
    Select  /mnt/user/appdata/farm-manager/farm-manager-db.xml
-   (copy the XML file there first, or paste the contents of the
-   XML directly into the template fields manually).
+   (copy the XML file there first, or paste the contents into the
+   template fields manually).
 
    Alternatively, fill in the fields by hand:
      Repository:      postgis/postgis:16-3.4
      Name:            farm-manager-db
-     Network:         farm-manager   (type it in the Network box)
+     Network:         farm-manager
      Restart:         Unless stopped
      Path /var/lib/postgresql/data  →  /mnt/user/appdata/farm-manager/db
 
@@ -66,43 +61,74 @@ b. Scroll to the bottom and click "Load template from a file".
 c. Click Apply. Wait for the container to turn green/running.
 
 
-Step 5 — Add the app container
+Step 4 — Add the app container
 ---------------------------------
 a. Click "Add Container" again.
 b. Load or manually fill from farm-manager-app.xml:
      Repository:   ghcr.io/YOURUSERNAME/farm-manager:latest
-                   (replace YOURUSERNAME with your GitHub account)
      Name:         farm-manager
      Network:      farm-manager
      Restart:      Unless stopped
      Port:         3000 (host) → 3000 (container)
+     Path /data/uploads → /mnt/user/appdata/farm-manager/uploads
 
      Variables:
-       DATABASE_URL   postgres://farm:<DB_PASSWORD>@farm-manager-db:5432/farm
-                      (replace <DB_PASSWORD> with what you set in Step 4)
-       APP_PASSWORD   <the password you want to log in with>
-       SESSION_SECRET <the hex string from Step 3>
-       ORIGIN         http://192.168.1.X:3000
-                      ** REQUIRED — cannot be blank. Use your Unraid server's
-                      LAN IP and the port you mapped (default 3000). If you
-                      access via HTTPS reverse proxy, use that URL instead.
-                      SvelteKit refuses to start without a valid URL here. **
-       PUBLIC_APP_NAME Farm Manager  (or whatever you like)
+       DATABASE_URL     postgres://farm:<DB_PASSWORD>@farm-manager-db:5432/farm
+                        (replace <DB_PASSWORD> with what you set in Step 3)
+       APP_PASSWORD     <the password you want to log in with>
+       SESSION_SECRET   <the hex string from Step 2>
+       ORIGIN           Required. Use ONE of:
+                          - LAN-only:      http://<unraid-ip>:3000
+                          - HTTPS proxy:   https://farm.example.com
+                        Whatever you paste MUST match the URL you type in the
+                        browser (scheme + host + port). SvelteKit refuses to
+                        start without a valid URL here.
+       PROTOCOL_HEADER  x-forwarded-proto   (when fronted by a reverse proxy)
+       HOST_HEADER      x-forwarded-host    (when fronted by a reverse proxy)
+                        Leave the two headers blank for LAN-only / direct access.
+       PUBLIC_APP_NAME  Farm Manager        (optional)
+       UPLOAD_MAX_MB    10                  (optional, default 10)
 
 c. Click Apply.
 
 
-Step 6 — Open the app
+Step 5 — Open the app
 -----------------------
-Browse to  http://<unraid-ip>:3000
+Browse to  http://<unraid-ip>:3000   (or your HTTPS URL)
 
 The first boot runs the database migrations automatically
-(including enabling PostGIS). This takes a few seconds;
-if it fails, check the container log — the most common cause
-is the database not yet being ready. Stop and start the
-farm-manager container once to retry.
+(including enabling PostGIS and creating the field_uses, tasks,
+and photos schema). This takes a few seconds; if it fails, check
+the container log — the most common cause is the database not yet
+being ready. Stop and start the farm-manager container once to
+retry.
 
 Log in with the APP_PASSWORD you set above.
+
+
+Subscribing to the task feed from Google / Apple / Outlook
+----------------------------------------------------------
+Farm Manager can expose your open + recently-completed tasks as
+an iCalendar feed that any calendar app can poll. To set it up:
+
+1. Open Settings → "Calendar feed" → "Generate feed URL".
+2. Copy the URL it shows you.
+3. In Google Calendar (desktop):
+     Other calendars → + → "From URL" → paste → Add
+   In Apple Calendar:
+     File → New Calendar Subscription → paste
+   In Outlook:
+     Add calendar → Subscribe from web → paste
+
+Notes:
+- Google polls subscriptions at its own cadence (hours, not minutes).
+- The feed is READ-ONLY: ticking a task done in Google Calendar does
+  NOT mark it done in Farm Manager. Use the Farm Manager /tasks page.
+- Anyone with the feed URL can read your tasks. Keep it private. You
+  can rotate or disable it from Settings at any time.
+- The feed URL is unauthenticated except for the query-string token,
+  so for public HTTPS access set ORIGIN to your public URL
+  (e.g. https://farm.example.com) so the VEVENT links resolve.
 
 
 Updating
@@ -115,22 +141,32 @@ Updating
 
 Backups
 -------
-- Full app backup: Settings page → "Download full backup (.json)".
-  This includes all locations, events, and settings in one file.
-  Restore via the same page.
+- Full app backup (recommended): Settings page → "Download full
+  backup (.json)". This includes locations, events, field-use
+  history, and tasks in one file. Restore via the same page.
 
-- Raw database dump (from Unraid terminal):
+- Database dump (from Unraid terminal):
     docker exec farm-manager-db pg_dump -U farm farm > \
       /mnt/user/appdata/farm-manager/backup-$(date +%F).sql
 
-- Appdata snapshot: the entire /mnt/user/appdata/farm-manager/db/
-  folder is the Postgres data directory. Unraid's built-in
-  Appdata Backup plugin can back this up automatically.
+- Photos: photos are NOT in the JSON export (too large). Back up
+  /mnt/user/appdata/farm-manager/uploads/ separately, e.g. via
+  Unraid's Appdata Backup plugin.
+
+- Appdata snapshot: /mnt/user/appdata/farm-manager/ contains the
+  database (db/) and photos (uploads/). Unraid's built-in Appdata
+  Backup plugin can capture both automatically.
 
 
-Reverse proxy (optional)
--------------------------
-If you expose Farm Manager externally via SWAG, Nginx Proxy
-Manager, or Cloudflare Tunnel, set the ORIGIN variable to
-your public HTTPS URL so session cookies are sent as Secure.
-SameSite=Lax is always set regardless.
+Reverse proxy
+-------------
+When fronted by SWAG / Nginx / Caddy / Traefik / NPM / Cloudflare
+Tunnel, set:
+  - ORIGIN to the full HTTPS URL, e.g. https://farm.example.com
+  - PROTOCOL_HEADER=x-forwarded-proto
+  - HOST_HEADER=x-forwarded-host
+
+Ensure your proxy forwards the matching X-Forwarded-Proto and
+X-Forwarded-Host headers. SvelteKit will then build correct
+absolute URLs (e.g. in the iCal feed's VEVENT DESCRIPTION) and
+the session cookie will be marked Secure automatically.

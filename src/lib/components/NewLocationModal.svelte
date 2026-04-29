@@ -1,30 +1,42 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { formatHa, formatAc } from '$lib/utils/format';
+  import { formatHa, formatAc, formatLength } from '$lib/utils/format';
+  import { locations } from '$lib/stores';
+  import TagInput from './TagInput.svelte';
 
-  export let kind: 'field' | 'shed';
+  export let kind: 'field' | 'shed' | 'line';
   export let areaHa: number | null = null;
+  export let lengthM: number | null = null;
 
-  const PALETTE = [
-    '#60ad6f',
-    '#22c55e',
-    '#16a34a',
-    '#eab308',
-    '#f59e0b',
-    '#ef4444',
-    '#3b82f6',
-    '#8b5cf6',
-    '#ec4899',
-    '#6b7280'
-  ];
+  const PALETTE_FIELD = ['#60ad6f', '#22c55e', '#16a34a', '#eab308', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280'];
+  const PALETTE_SHED = ['#f59e0b', '#d97706', '#b45309', '#78350f', '#6b7280', '#374151', '#3b82f6', '#10b981', '#ec4899', '#ef4444'];
+  const PALETTE_LINE = ['#3b82f6', '#2563eb', '#1d4ed8', '#0ea5e9', '#06b6d4', '#14b8a6', '#64748b', '#475569', '#ef4444', '#a855f7'];
+
+  $: palette = kind === 'field' ? PALETTE_FIELD : kind === 'line' ? PALETTE_LINE : PALETTE_SHED;
 
   let name = '';
-  let color = kind === 'field' ? '#60ad6f' : '#f59e0b';
+  let color = kind === 'field' ? '#60ad6f' : kind === 'line' ? '#3b82f6' : '#f59e0b';
   let notes = '';
+  let tags: string[] = [];
   let error = '';
 
+  // Gather existing tags for autocomplete.
+  $: tagSuggestions = Array.from(
+    new Set($locations.flatMap((l) => l.tags ?? []))
+  ).sort();
+
+  $: kindLabel =
+    kind === 'field' ? 'field' : kind === 'line' ? 'line' : 'shed';
+
+  $: namePlaceholder =
+    kind === 'field'
+      ? 'e.g. Top Meadow'
+      : kind === 'line'
+      ? 'e.g. North drainage pipe'
+      : 'e.g. Cattle Shed 1';
+
   const dispatch = createEventDispatcher<{
-    save: { name: string; color: string; notes: string };
+    save: { name: string; color: string; notes: string; tags: string[] };
     cancel: void;
   }>();
 
@@ -33,7 +45,12 @@
       error = 'Name is required.';
       return;
     }
-    dispatch('save', { name: name.trim(), color, notes: notes.trim() });
+    dispatch('save', {
+      name: name.trim(),
+      color,
+      notes: notes.trim(),
+      tags
+    });
   }
 </script>
 
@@ -47,12 +64,16 @@
 >
   <div class="card w-full max-w-md p-5 sm:rounded-2xl">
     <h2 class="mb-1 text-lg font-semibold">
-      New {kind === 'field' ? 'field' : 'shed'}
+      New {kindLabel}
     </h2>
     {#if kind === 'field' && areaHa !== null}
       <p class="mb-4 text-sm text-slate-600 dark:text-slate-400">
         Area: <span class="font-medium">{formatHa(areaHa)}</span>
         <span class="text-slate-500">&middot; {formatAc(areaHa)}</span>
+      </p>
+    {:else if kind === 'line' && lengthM !== null}
+      <p class="mb-4 text-sm text-slate-600 dark:text-slate-400">
+        Length: <span class="font-medium">{formatLength(lengthM)}</span>
       </p>
     {:else}
       <p class="mb-4 text-sm text-slate-600 dark:text-slate-400">
@@ -69,7 +90,7 @@
           class="input"
           bind:value={name}
           autofocus
-          placeholder={kind === 'field' ? 'e.g. Top Meadow' : 'e.g. Cattle Shed 1'}
+          placeholder={namePlaceholder}
           maxlength="200"
           on:keydown={(e) => e.key === 'Enter' && save()}
         />
@@ -78,7 +99,7 @@
       <div>
         <span class="label">Colour</span>
         <div class="flex flex-wrap gap-2">
-          {#each PALETTE as c}
+          {#each palette as c}
             <button
               type="button"
               class="h-8 w-8 rounded-full ring-2 ring-offset-2 ring-offset-white transition dark:ring-offset-slate-800"
@@ -90,6 +111,11 @@
             ></button>
           {/each}
         </div>
+      </div>
+
+      <div>
+        <span class="label">Tags</span>
+        <TagInput bind:value={tags} suggestions={tagSuggestions} />
       </div>
 
       <div>

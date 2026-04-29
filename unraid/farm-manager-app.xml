@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support></Support>
   <Project>https://github.com/YOURUSERNAME/farm-manager</Project>
-  <Overview>Farm Manager — self-hosted PWA for drawing farm fields and sheds on a satellite map and logging timestamped management events (fertilizer, cattle in/out, silage, etc.).&#xD;&#xD;Requires the farm-manager-db container to be running first, and both containers must be on the same custom Docker network.&#xD;&#xD;Before adding either container run this once in the Unraid terminal:&#xD;  docker network create farm-manager</Overview>
+  <Overview>Farm Manager — self-hosted PWA for drawing farm fields, sheds, and lines on a satellite map and logging timestamped management events with photos, tracking field use history, and managing tasks with an iCal feed for Google Calendar.&#xD;&#xD;Requires the farm-manager-db container to be running first, and both containers must be on the same custom Docker network.&#xD;&#xD;Before adding either container run this once in the Unraid terminal:&#xD;  docker network create farm-manager&#xD;  mkdir -p /mnt/user/appdata/farm-manager/uploads</Overview>
   <Category>Productivity:</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <TemplateURL></TemplateURL>
@@ -27,6 +27,18 @@
     Display="always"
     Required="true"
     Mask="false">3000</Config>
+
+  <!-- Uploads volume -->
+  <Config
+    Name="Uploads Path"
+    Target="/data/uploads"
+    Default="/mnt/user/appdata/farm-manager/uploads"
+    Mode="rw"
+    Description="Where event photos are stored. Back this up with the Appdata Backup plugin alongside the database folder."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/farm-manager/uploads</Config>
 
   <!-- Environment variables -->
   <Config
@@ -65,13 +77,46 @@
   <Config
     Name="ORIGIN"
     Target="ORIGIN"
-    Default="http://192.168.1.X:3000"
+    Default="https://farm.example.com"
     Mode=""
-    Description="REQUIRED. The URL used to access this app, matching exactly what you type in the browser. For local LAN access use your server IP: http://192.168.1.X:3000 (replace X). If accessed via HTTPS reverse proxy use that URL instead, e.g. https://farm.yourdomain.com. Cannot be left blank — SvelteKit will refuse to start."
+    Description="REQUIRED. The URL used to access this app, matching exactly what you type in the browser. For local LAN access use your server IP: http://192.168.1.X:3000 (replace X). For public HTTPS access via reverse proxy use e.g. https://farm.richowen.me. Cannot be left blank — SvelteKit will refuse to start. This value is also embedded in the iCal feed's VEVENT descriptions so Google Calendar links open the right server."
     Type="Variable"
     Display="always"
     Required="true"
-    Mask="false">http://192.168.1.X:3000</Config>
+    Mask="false">https://farm.example.com</Config>
+
+  <Config
+    Name="PROTOCOL_HEADER"
+    Target="PROTOCOL_HEADER"
+    Default="x-forwarded-proto"
+    Mode=""
+    Description="(Reverse proxy) Header your proxy uses to signal the original scheme. Leave as x-forwarded-proto for Nginx/Caddy/Traefik/SWAG/NPM. Leave blank only if you access the container directly without a proxy."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">x-forwarded-proto</Config>
+
+  <Config
+    Name="HOST_HEADER"
+    Target="HOST_HEADER"
+    Default="x-forwarded-host"
+    Mode=""
+    Description="(Reverse proxy) Header your proxy uses to signal the original Host. Leave as x-forwarded-host for Nginx/Caddy/Traefik/SWAG/NPM. Leave blank only if you access the container directly without a proxy."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">x-forwarded-host</Config>
+
+  <Config
+    Name="UPLOAD_MAX_MB"
+    Target="UPLOAD_MAX_MB"
+    Default="10"
+    Mode=""
+    Description="(Optional) Maximum uploaded photo size in megabytes. Photos larger than 2000 px on the long edge are auto-downscaled; this limits the raw upload size."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">10</Config>
 
   <Config
     Name="PUBLIC_APP_NAME"

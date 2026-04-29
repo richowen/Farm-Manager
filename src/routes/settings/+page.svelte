@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api, ApiError } from '$lib/client/api';
-  import type { UserSettings } from '$lib/schemas';
+  import { DEFAULT_USE_COLORS, type UserSettings } from '$lib/schemas';
   import { toast } from '$lib/stores';
 
   let settings: UserSettings | null = null;
@@ -12,6 +12,12 @@
   let importBusy = false;
   let importMode: 'append' | 'replace' = 'append';
   let theme: 'system' | 'light' | 'dark' = 'system';
+
+  // iCal
+  let icalBusy = false;
+
+  // Use types
+  let newUseType = '';
 
   onMount(async () => {
     try {
@@ -102,7 +108,7 @@
     if (
       importMode === 'replace' &&
       !confirm(
-        'REPLACE mode will delete all existing locations and events before importing. Continue?'
+        'REPLACE mode will delete all existing locations, events, field-use history, and tasks before importing. Continue?'
       )
     ) {
       input.value = '';
@@ -122,10 +128,13 @@
         toast('error', 'Import failed: ' + body.slice(0, 200));
       } else {
         const body = await res.json();
-        toast(
-          'success',
-          `Imported ${body.counts.locations} locations, ${body.counts.events} events.`
-        );
+        const parts = [
+          `${body.counts.locations} locations`,
+          `${body.counts.events} events`
+        ];
+        if (body.counts.field_uses) parts.push(`${body.counts.field_uses} use periods`);
+        if (body.counts.tasks) parts.push(`${body.counts.tasks} tasks`);
+        toast('success', 'Imported ' + parts.join(', ') + '.');
       }
     } catch (err) {
       console.error(err);
@@ -147,13 +156,107 @@
       (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark', dark);
   }
+
+  // ---- iCal feed ----------------------------------------------------------
+  async function rotateIcal(): Promise<void> {
+    if (settings?.icalFeedToken) {
+      if (!confirm('Rotating will invalidate the current URL — any existing subscriptions will stop updating until you re-subscribe with the new URL. Continue?')) return;
+    }
+    icalBusy = true;
+    try {
+      const res = await api.rotateIcalToken();
+      if (settings) settings = { ...settings, icalFeedToken: res.token };
+      toast('success', 'Feed URL generated.');
+    } catch {
+      toast('error', 'Could not generate feed URL.');
+    } finally {
+      icalBusy = false;
+    }
+  }
+
+  async function disableIcal(): Promise<void> {
+    if (!confirm('Disable the calendar feed? The URL will stop working.')) return;
+    icalBusy = true;
+    try {
+      await api.disableIcalToken();
+      if (settings) settings = { ...settings, icalFeedToken: null };
+      toast('success', 'Feed disabled.');
+    } catch {
+      toast('error', 'Could not disable feed.');
+    } finally {
+      icalBusy = false;
+    }
+  }
+
+  function icalUrl(): string {
+    if (!settings?.icalFeedToken) return '';
+    const base =
+      typeof window !== 'undefined'
+        ? `${window.location.protocol}//${window.location.host}`
+        : '';
+    return `${base}/calendar.ics?token=${settings.icalFeedToken}`;
+  }
+
+  async function copyIcalUrl(): Promise<void> {
+    const url = icalUrl();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('success', 'URL copied.');
+    } catch {
+      toast('error', 'Copy failed — select it manually.');
+    }
+  }
+
+  // ---- Use types ----------------------------------------------------------
+  function addUseType(): void {
+    if (!settings) return;
+    const cleaned = newUseType.trim().toLowerCase();
+    if (!cleaned) return;
+    if (settings.useTypes.includes(cleaned)) {
+      toast('info', 'Already in list.');
+      return;
+    }
+    settings = {
+      ...settings,
+      useTypes: [...settings.useTypes, cleaned]
+    };
+    newUseType = '';
+  }
+
+  function removeUseType(t: string): void {
+    if (!settings) return;
+    if (!confirm(`Remove "${t}" from use type list? (Existing history entries keep this type; they just won't be suggested.)`)) return;
+    settings = {
+      ...settings,
+      useTypes: settings.useTypes.filter((x) => x !== t)
+    };
+  }
+
+  function colorForUseType(t: string): string {
+    if (!settings) return '#9ca3af';
+    return settings.useColors[t] ?? DEFAULT_USE_COLORS[t] ?? '#6366f1';
+  }
+
+  function onUseColorInput(t: string, ev: Event): void {
+    const val = (ev.currentTarget as HTMLInputElement).value;
+    setUseColor(t, val);
+  }
+
+  function setUseColor(t: string, c: string): void {
+    if (!settings) return;
+    settings = {
+      ...settings,
+      useColors: { ...settings.useColors, [t]: c }
+    };
+  }
 </script>
 
 <svelte:head>
   <title>Settings — Farm Manager</title>
 </svelte:head>
 
-<div class="min-h-screen bg-slate-50 dark:bg-slate-900">
+<div class="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20">
   <header class="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
     <div class="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
       <a href="/" class="btn-ghost !p-2" aria-label="Back to map">
@@ -223,14 +326,88 @@
       {/if}
     </section>
 
+    <!-- Use types -->
+    <section class="card p-4">
+      <h2 class="mb-1 text-base font-semibold">Field use types</h2>
+      <p class="mb-3 text-xs text-slate-500">
+        Types available when starting a new field-use period. Colours are used when the map is set to "colour by current use".
+      </p>
+      {#if settings}
+        <ul class="space-y-2">
+          {#each settings.useTypes as t}
+            <li class="flex items-center gap-2">
+              <input
+                type="color"
+                class="h-8 w-10 shrink-0 cursor-pointer rounded border border-slate-300 dark:border-slate-600"
+                value={colorForUseType(t)}
+                on:input={(e) => onUseColorInput(t, e)}
+                aria-label="Colour for {t}"
+              />
+              <span class="flex-1 capitalize">{t}</span>
+              <button class="text-xs text-slate-500 hover:text-red-600" on:click={() => removeUseType(t)}>Remove</button>
+            </li>
+          {/each}
+        </ul>
+        <div class="mt-3 flex gap-2">
+          <input
+            class="input flex-1"
+            placeholder="Add new use type…"
+            bind:value={newUseType}
+            on:keydown={(e) => e.key === 'Enter' && addUseType()}
+          />
+          <button class="btn-secondary" on:click={addUseType}>Add</button>
+        </div>
+        <div class="mt-3">
+          <button class="btn-primary" on:click={saveSettings}>Save use types</button>
+        </div>
+      {/if}
+    </section>
+
+    <!-- Calendar feed -->
+    <section class="card p-4">
+      <h2 class="mb-1 text-base font-semibold">Calendar feed</h2>
+      <p class="mb-3 text-xs text-slate-500">
+        Subscribe from Google Calendar / Apple Calendar / Outlook to see your farm tasks in your normal calendar. Anyone with this URL can read your tasks — keep it private.
+      </p>
+      {#if settings?.icalFeedToken}
+        <div class="space-y-2">
+          <label for="ical-url" class="label">Your feed URL</label>
+          <div class="flex gap-2">
+            <input id="ical-url" class="input font-mono text-xs" readonly value={icalUrl()} />
+            <button class="btn-secondary shrink-0" on:click={copyIcalUrl}>Copy</button>
+          </div>
+          <details class="text-xs">
+            <summary class="cursor-pointer text-slate-500">How to subscribe</summary>
+            <ul class="mt-2 space-y-1 text-slate-600 dark:text-slate-400">
+              <li><strong>Google Calendar</strong> (desktop): Other calendars → + → From URL → paste</li>
+              <li><strong>Apple Calendar</strong>: File → New Calendar Subscription → paste</li>
+              <li><strong>Outlook</strong>: Add calendar → Subscribe from web → paste</li>
+            </ul>
+            <p class="mt-2 text-slate-500">
+              Calendars poll on their own cadence (hours, not minutes) — completing a task in Farm Manager may take a while to reflect. Ticking done in Google Calendar does not mark it done here (read-only feed).
+            </p>
+          </details>
+          <div class="flex gap-2 pt-1">
+            <button class="btn-secondary !text-xs" disabled={icalBusy} on:click={rotateIcal}>
+              {icalBusy ? '…' : 'Rotate URL'}
+            </button>
+            <button class="btn-danger !text-xs" disabled={icalBusy} on:click={disableIcal}>Disable feed</button>
+          </div>
+        </div>
+      {:else}
+        <p class="text-sm text-slate-500 mb-3">Feed is disabled.</p>
+        <button class="btn-primary" disabled={icalBusy} on:click={rotateIcal}>
+          {icalBusy ? '…' : 'Generate feed URL'}
+        </button>
+      {/if}
+    </section>
+
     <!-- Password -->
     <section class="card p-4">
       <h2 class="mb-3 text-base font-semibold">Change password</h2>
       <p class="mb-3 text-xs text-slate-500">
         The new password is stored as a hash in the database and overrides the
-        <code>APP_PASSWORD</code> env var until you change it again. If you ever
-        lose it, change <code>APP_PASSWORD</code> in your compose file and restart
-        — but note that the stored hash will still override it until cleared.
+        <code>APP_PASSWORD</code> env var until you change it again.
       </p>
       <div class="space-y-3">
         <div>
@@ -254,11 +431,17 @@
     <!-- Backup -->
     <section class="card p-4">
       <h2 class="mb-3 text-base font-semibold">Backup &amp; restore</h2>
+      <p class="mb-3 text-xs text-slate-500">
+        The JSON backup now includes field-use history and tasks as well as locations and events. v1 backups (from Farm Manager 0.1) still import correctly.
+      </p>
       <div class="space-y-3">
         <div class="flex flex-wrap gap-2">
           <button class="btn-secondary" on:click={exportJson}>Download full backup (.json)</button>
           <button class="btn-secondary" on:click={exportGeojson}>Download geometry only (.geojson)</button>
         </div>
+        <p class="text-xs text-slate-500">
+          Photos are stored in the uploads volume (<code>/data/uploads</code>) and are not included in the JSON export — back them up from the host (see README).
+        </p>
         <div>
           <span class="label">Restore a backup</span>
           <div class="mb-2 flex gap-2 text-sm">
