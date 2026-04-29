@@ -3,7 +3,7 @@ import { parse } from 'exifr';
 export async function resizeImage(file, {
   maxWidth = 1920,
   maxHeight = 1920,
-  quality = 0.85,
+  quality = 0.50,
   type = 'image/jpeg'
 } = {}) {
   let orientation = 1;

@@ -4,6 +4,13 @@ All notable changes are listed here. Follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] — 2026-04
+
+### Changed
+
+- **Image upload quality reduced to 50%.** Client-side resize now encodes at
+  JPEG quality 50 (down from 85) to further reduce upload size.
+
 ## [0.3.1] — 2026-04
 
 ### Fixed
