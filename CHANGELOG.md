@@ -4,6 +4,28 @@ All notable changes are listed here. Follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] — 2026-04
+
+### Fixed
+
+- **Mobile toolbar no longer overflows or clips.** The draw toolbar (Field /
+  Shed / Pipe / Drain / Pin / Select / Edit) now wraps to a second row on
+  narrow screens instead of being cut off. The outer container is capped at
+  `calc(100vw - 2rem)` so it never escapes the screen edge.
+- **FAB clears the toolbar on mobile.** The "I am here" button is raised by
+  `5.5rem` above the nav bar on mobile (vs `1rem` on desktop) so it sits above
+  even a two-row wrapped toolbar and is never covered.
+- **TopBar fits without clipping on small phones.** The Timeline and Settings
+  links are now hidden on mobile (`sm:hidden`) because they are already
+  accessible from the MobileNav tab bar. The reduced button count keeps the
+  pill well within the screen width on all current phone sizes.
+- **Viewport height no longer jumps on iOS/Android.** Map height changed from
+  `h-screen` (includes browser chrome) to `h-[100dvh]` (dynamic viewport
+  height) so the map doesn't resize as the address bar appears/disappears.
+- **Offline banner moved to top.** The "Offline" status pill now appears below
+  the TopBar (`top: 4.5rem`) rather than at the bottom where it was covered by
+  the draw toolbar.
+
 ## [0.3.2] — 2026-04
 
 ### Changed
