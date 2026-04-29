@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import { api } from '$lib/client/api';
   import { toast } from '$lib/stores';
+  import { resizeImage } from '$lib/utils/resizeImage.js';
   import type { PhotoRef } from '$lib/schemas';
 
   export let value: PhotoRef[] = [];
@@ -23,7 +24,8 @@
     for (const f of files) {
       uploading++;
       try {
-        const ref = await api.uploadPhoto(f);
+        const toUpload = f.type.startsWith('image/') ? await resizeImage(f) : f;
+        const ref = await api.uploadPhoto(toUpload);
         value = [...value, ref];
         emit();
       } catch (err) {
