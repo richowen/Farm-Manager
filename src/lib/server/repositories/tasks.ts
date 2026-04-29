@@ -5,7 +5,7 @@ interface TaskRow {
   id: string;
   title: string;
   notes: string | null;
-  due_at: Date;
+  due_at: Date | null;
   location_id: string | null;
   done_at: Date | null;
   recurrence: Recurrence;
@@ -18,7 +18,7 @@ function rowToRecord(row: TaskRow): TaskRecord {
     id: row.id,
     title: row.title,
     notes: row.notes,
-    due_at: row.due_at.toISOString(),
+    due_at: row.due_at ? row.due_at.toISOString() : null,
     location_id: row.location_id,
     done_at: row.done_at ? row.done_at.toISOString() : null,
     recurrence: row.recurrence,
@@ -46,7 +46,7 @@ export async function listTasks(filter: TaskFilter = 'all'): Promise<TaskRecord[
   const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
   const { rows } = await query<TaskRow>(
     `SELECT ${COLS} FROM tasks ${whereSql}
-       ORDER BY done_at IS NOT NULL, due_at ASC, created_at ASC`
+       ORDER BY done_at IS NOT NULL, due_at ASC NULLS LAST, created_at ASC`
   );
   return rows.map(rowToRecord);
 }
@@ -154,7 +154,7 @@ export async function completeTask(
     );
     const completed = rows[0] ? rowToRecord(rows[0]) : null;
     if (!completed) return { completed: null, next: null };
-    if (completed.recurrence === 'none') return { completed, next: null };
+    if (completed.recurrence === 'none' || !completed.due_at) return { completed, next: null };
     const nextDue = nextOccurrence(new Date(completed.due_at), completed.recurrence);
     if (!nextDue) return { completed, next: null };
     const { rows: nxt } = await client.query<TaskRow>(

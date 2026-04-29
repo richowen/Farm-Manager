@@ -4,6 +4,35 @@ All notable changes are listed here. Follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] — 2026-04
+
+### Changed
+
+- **Tasks renamed to Calendar everywhere.** The "Tasks" tab in the mobile
+  nav, the desktop TopBar link, the page `<title>`, and the Settings iCal
+  section now all say "Calendar". The URL (`/tasks`) and all API routes
+  (`/api/tasks`) are unchanged so existing iCal subscriptions keep working.
+- **Calendar page redesigned.** Old tabs (Overdue / Due today / Upcoming /
+  Done) replaced with three cleaner tabs:
+  - **Planned** — all undone entries, sorted by due date (overdue items
+    shown in red).
+  - **Done** — completed entries.
+  - **To-do** — to-do pins loaded from `/api/pins?status=todo`, each with a
+    "View on map" link. Completing a pin here patches it to `status=done`.
+- **Snooze buttons removed.** The "+1 day" and "+1 week" snooze actions are
+  gone from the entry list. Rescheduling is done via the Edit form.
+- **Recurrence removed from the manual create/edit form.** The recurrence
+  select is no longer shown in the UI form; recurrence is still stored and
+  respected when completing worming-reminder tasks created programmatically.
+- **Due date is now optional.** The "Due" field is replaced by a "Set a
+  date" checkbox. Leave it unchecked for undated reminders; the entry
+  appears in the Planned list without a date.
+
+### DB
+
+- Migration `0012_tasks_due_at_nullable.sql` — `ALTER TABLE tasks ALTER
+  COLUMN due_at DROP NOT NULL`. Apply automatically on first boot.
+
 ## [0.4.1] — 2026-04
 
 ### Added

@@ -3,18 +3,17 @@
   import { page } from '$app/stores';
   import { api, ApiError } from '$lib/client/api';
   import { locations, toast, incrementOverlay, decrementOverlay } from '$lib/stores';
-  import type { LocationRecord, Recurrence, TaskRecord, PinRecord } from '$lib/schemas';
+  import type { LocationRecord, TaskRecord, PinRecord } from '$lib/schemas';
   import { formatDate, formatDateTime, formatRelative } from '$lib/utils/format';
 
-  type FilterKey = 'due' | 'overdue' | 'upcoming' | 'done';
+  type FilterKey = 'planned' | 'done' | 'todo';
   const FILTERS: Array<{ id: FilterKey; label: string }> = [
-    { id: 'overdue', label: 'Overdue' },
-    { id: 'due', label: 'Due today' },
-    { id: 'upcoming', label: 'Upcoming' },
-    { id: 'done', label: 'Done' }
+    { id: 'planned', label: 'Planned' },
+    { id: 'done', label: 'Done' },
+    { id: 'todo', label: 'To-do' }
   ];
 
-  let activeFilter: FilterKey = 'upcoming';
+  let activeFilter: FilterKey = 'planned';
   let allTasks: TaskRecord[] = [];
   let allLocations: LocationRecord[] = [];
   let todoPins: PinRecord[] = [];
@@ -24,9 +23,9 @@
   let editingId: string | null = null;
   let f_title = '';
   let f_notes = '';
+  let f_hasDate = false;
   let f_due = '';
   let f_location = '';
-  let f_recurrence: Recurrence = 'none';
   let f_saving = false;
   let formError = '';
 
@@ -38,8 +37,8 @@
     } catch {
       /* non-fatal */
     }
-    // Deep-link: /tasks#<id> opens the editor for that task.
     await reload();
+    // Deep-link: /tasks#<id> opens the editor for that task.
     const hashId = $page.url.hash?.replace(/^#/, '');
     if (hashId) {
       const t = allTasks.find((x) => x.id === hashId);
@@ -62,43 +61,31 @@
         return;
       }
       console.error(err);
-      toast('error', 'Failed to load tasks.');
+      toast('error', 'Failed to load calendar.');
     } finally {
       loading = false;
     }
   }
 
   function filtered(tasks: TaskRecord[], filter: FilterKey): TaskRecord[] {
-    const now = Date.now();
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
-    return tasks.filter((t) => {
-      if (filter === 'done') return !!t.done_at;
-      if (t.done_at) return false;
-      const due = new Date(t.due_at).getTime();
-      if (filter === 'overdue') return due < now;
-      if (filter === 'due') {
-        const start = new Date();
-        start.setHours(0, 0, 0, 0);
-        return due >= start.getTime() && due <= todayEnd.getTime();
-      }
-      // upcoming
-      return due > todayEnd.getTime();
-    });
+    if (filter === 'done') return tasks.filter((t) => !!t.done_at);
+    if (filter === 'planned') return tasks.filter((t) => !t.done_at);
+    return [];
   }
 
   $: shown = filtered(allTasks, activeFilter);
+
+  function isOverdue(t: TaskRecord): boolean {
+    return !t.done_at && !!t.due_at && new Date(t.due_at) < new Date();
+  }
 
   function openNew(): void {
     editingId = null;
     f_title = '';
     f_notes = '';
-    const now = new Date();
-    now.setMinutes(0, 0, 0);
-    now.setHours(now.getHours() + 1);
-    f_due = now.toISOString().slice(0, 16);
+    f_hasDate = false;
+    f_due = '';
     f_location = '';
-    f_recurrence = 'none';
     formError = '';
     showForm = true;
   }
@@ -107,9 +94,9 @@
     editingId = t.id;
     f_title = t.title;
     f_notes = t.notes ?? '';
-    f_due = new Date(t.due_at).toISOString().slice(0, 16);
+    f_hasDate = !!t.due_at;
+    f_due = t.due_at ? new Date(t.due_at).toISOString().slice(0, 16) : '';
     f_location = t.location_id ?? '';
-    f_recurrence = t.recurrence;
     formError = '';
     showForm = true;
   }
@@ -124,15 +111,14 @@
       const payload = {
         title: f_title.trim(),
         notes: f_notes || null,
-        due_at: new Date(f_due).toISOString(),
-        location_id: f_location || null,
-        recurrence: f_recurrence
+        due_at: f_hasDate && f_due ? new Date(f_due).toISOString() : null,
+        location_id: f_location || null
       };
       if (editingId) await api.updateTask(editingId, payload);
       else await api.createTask(payload);
       showForm = false;
       await reload();
-      toast('success', editingId ? 'Task updated.' : 'Task created.');
+      toast('success', editingId ? 'Updated.' : 'Created.');
     } catch (err) {
       console.error(err);
       toast('error', 'Save failed.');
@@ -146,7 +132,7 @@
       const res = await api.completeTask(t.id);
       await reload();
       if (res.next) {
-        toast('success', `Marked done. Next ${t.recurrence} task on ${formatDate(res.next.due_at)}.`);
+        toast('success', `Marked done. Next ${t.recurrence} on ${formatDate(res.next.due_at)}.`);
       } else {
         toast('success', 'Marked done.');
       }
@@ -164,18 +150,6 @@
       toast('success', 'Deleted.');
     } catch {
       toast('error', 'Delete failed.');
-    }
-  }
-
-  async function snooze(t: TaskRecord, days: number): Promise<void> {
-    const when = new Date(t.due_at);
-    when.setDate(when.getDate() + days);
-    try {
-      await api.updateTask(t.id, { due_at: when.toISOString() });
-      await reload();
-      toast('success', `Snoozed ${days} day${days === 1 ? '' : 's'}.`);
-    } catch {
-      toast('error', 'Snooze failed.');
     }
   }
 
@@ -212,8 +186,8 @@
   }
 
   function counts(key: FilterKey): number {
-    const taskCount = filtered(allTasks, key).length;
-    return key === 'upcoming' ? taskCount + todoPins.length : taskCount;
+    if (key === 'todo') return todoPins.length;
+    return filtered(allTasks, key).length;
   }
 
   async function completePinTodo(pin: PinRecord): Promise<void> {
@@ -246,7 +220,7 @@
 </script>
 
 <svelte:head>
-  <title>Tasks — Farm Manager</title>
+  <title>Calendar — Farm Manager</title>
 </svelte:head>
 
 <div class="min-h-screen bg-slate-50 dark:bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-4">
@@ -257,7 +231,7 @@
           <path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </a>
-      <h1 class="flex-1 text-lg font-semibold">Tasks</h1>
+      <h1 class="flex-1 text-lg font-semibold">Calendar</h1>
       <button class="btn-primary !py-1.5 !text-xs" on:click={openNew}>+ New</button>
     </div>
     <nav class="mx-auto flex max-w-3xl gap-1 px-2 pb-2 overflow-x-auto">
@@ -290,21 +264,14 @@
   <main class="mx-auto max-w-3xl p-4">
     {#if loading && shown.length === 0 && todoPins.length === 0}
       <p class="text-sm text-slate-500">Loading…</p>
-    {:else if shown.length === 0 && (activeFilter !== 'upcoming' || todoPins.length === 0)}
-      <div class="card p-8 text-center text-sm text-slate-500">
-        {#if activeFilter === 'done'}
-          No completed tasks.
-        {:else if activeFilter === 'overdue'}
-          Nothing overdue — nice.
-        {:else if activeFilter === 'due'}
-          Nothing due today.
-        {:else}
-          No upcoming tasks. Tap <strong>+ New</strong> to add one.
-        {/if}
-      </div>
-    {:else}
-      <ul class="card divide-y divide-slate-200 overflow-hidden dark:divide-slate-700">
-        {#if activeFilter === 'upcoming'}
+
+    {:else if activeFilter === 'todo'}
+      {#if todoPins.length === 0}
+        <div class="card p-8 text-center text-sm text-slate-500">
+          No to-do pins. Drop a pin on the map and set its status to <strong>To-do</strong>.
+        </div>
+      {:else}
+        <ul class="card divide-y divide-slate-200 overflow-hidden dark:divide-slate-700">
           {#each todoPins as pin (pin.id)}
             <li class="flex items-start gap-3 bg-white p-3 dark:bg-slate-800">
               <button
@@ -315,9 +282,9 @@
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline gap-2">
                   <svg class="mb-0.5 h-3 w-3 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/>
+                    <path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7zm0 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/>
                   </svg>
-                  <p class="font-medium">{pin.label ?? '(untitled pin)'}</p>
+                  <p class="font-medium">{pin.title ?? '(untitled pin)'}</p>
                 </div>
                 {#if pin.notes}
                   <p class="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{pin.notes}</p>
@@ -325,10 +292,24 @@
                 {#if pin.category}
                   <p class="mt-0.5 text-xs text-slate-400">{pin.category}</p>
                 {/if}
+                <a class="mt-0.5 block text-xs text-pasture-600 hover:underline" href="/?pin={pin.id}">View on map</a>
               </div>
             </li>
           {/each}
+        </ul>
+      {/if}
+
+    {:else if shown.length === 0}
+      <div class="card p-8 text-center text-sm text-slate-500">
+        {#if activeFilter === 'done'}
+          No completed entries yet.
+        {:else}
+          Nothing planned. Tap <strong>+ New</strong> to add an entry.
         {/if}
+      </div>
+
+    {:else}
+      <ul class="card divide-y divide-slate-200 overflow-hidden dark:divide-slate-700">
         {#each shown as t (t.id)}
           <li
             class="relative overflow-hidden"
@@ -336,9 +317,7 @@
             on:touchmove={(e) => onTouchMove(t.id, e)}
             on:touchend={() => onTouchEnd(t.id, t)}
           >
-            <div
-              class="absolute inset-y-0 right-0 flex items-center bg-red-600 pr-4 text-xs font-semibold text-white"
-            >
+            <div class="absolute inset-y-0 right-0 flex items-center bg-red-600 pr-4 text-xs font-semibold text-white">
               Delete
             </div>
             <div
@@ -348,8 +327,7 @@
               <button
                 class="mt-1 h-5 w-5 shrink-0 rounded-full border-2"
                 class:border-pasture-600={!t.done_at}
-                class:bg-pasture-600={t.done_at}
-                class:border-slate-300={!t.done_at && false}
+                class:bg-pasture-600={!!t.done_at}
                 aria-label="Mark complete"
                 disabled={!!t.done_at}
                 on:click={() => completeTask(t)}
@@ -363,22 +341,26 @@
                   <p class="font-medium" class:line-through={!!t.done_at} class:text-slate-400={!!t.done_at}>
                     {t.title}
                   </p>
-                  <time
-                    class="shrink-0 text-xs"
-                    class:text-red-600={!t.done_at && new Date(t.due_at) < new Date()}
-                    class:text-slate-500={!(!t.done_at && new Date(t.due_at) < new Date())}
-                    title={formatDateTime(t.due_at)}
-                  >
-                    {formatRelative(t.due_at)}
-                  </time>
+                  {#if t.due_at}
+                    <time
+                      class="shrink-0 text-xs"
+                      class:text-red-600={isOverdue(t)}
+                      class:text-slate-500={!isOverdue(t)}
+                      title={formatDateTime(t.due_at)}
+                    >
+                      {formatRelative(t.due_at)}
+                    </time>
+                  {/if}
                 </div>
                 <p class="text-xs text-slate-500">
-                  {formatDate(t.due_at)}
+                  {#if t.due_at}
+                    {formatDate(t.due_at)}
+                  {/if}
                   {#if t.recurrence !== 'none'}
-                    &middot; repeats {t.recurrence}
+                    {t.due_at ? ' · ' : ''} repeats {t.recurrence}
                   {/if}
                   {#if locationName(t.location_id)}
-                    &middot; <a class="text-pasture-600 hover:underline" href="/?location={t.location_id}">{locationName(t.location_id)}</a>
+                    {#if t.due_at || t.recurrence !== 'none'} · {/if}<a class="text-pasture-600 hover:underline" href="/?location={t.location_id}">{locationName(t.location_id)}</a>
                   {/if}
                 </p>
                 {#if t.notes}
@@ -386,10 +368,6 @@
                 {/if}
                 <div class="mt-1.5 flex gap-3 text-xs">
                   <button class="text-slate-500 hover:text-pasture-600" on:click={() => openEdit(t)}>Edit</button>
-                  {#if !t.done_at}
-                    <button class="text-slate-500 hover:text-pasture-600" on:click={() => snooze(t, 1)}>+1 day</button>
-                    <button class="text-slate-500 hover:text-pasture-600" on:click={() => snooze(t, 7)}>+1 week</button>
-                  {/if}
                   <button class="text-slate-500 hover:text-red-600" on:click={() => deleteTask(t)}>Delete</button>
                 </div>
               </div>
@@ -411,17 +389,24 @@
     on:keydown={(e) => e.key === 'Escape' && (showForm = false)}
   >
     <div class="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5 sm:rounded-2xl">
-      <h2 class="mb-3 text-lg font-semibold">{editingId ? 'Edit task' : 'New task'}</h2>
+      <h2 class="mb-3 text-lg font-semibold">{editingId ? 'Edit entry' : 'New calendar entry'}</h2>
       <div class="space-y-3">
         <div>
           <label for="t-title" class="label">Title</label>
           <!-- svelte-ignore a11y-autofocus -->
           <input id="t-title" class="input" bind:value={f_title} autofocus maxlength="300" />
         </div>
+
         <div>
-          <label for="t-due" class="label">Due</label>
-          <input id="t-due" type="datetime-local" class="input" bind:value={f_due} />
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" class="h-4 w-4 rounded accent-pasture-600" bind:checked={f_hasDate} />
+            <span class="label mb-0">Set a date</span>
+          </label>
+          {#if f_hasDate}
+            <input id="t-due" type="datetime-local" class="input mt-2" bind:value={f_due} />
+          {/if}
         </div>
+
         <div>
           <label for="t-loc" class="label">Location (optional)</label>
           <select id="t-loc" class="input" bind:value={f_location}>
@@ -431,19 +416,12 @@
             {/each}
           </select>
         </div>
-        <div>
-          <label for="t-rec" class="label">Recurrence</label>
-          <select id="t-rec" class="input" bind:value={f_recurrence}>
-            <option value="none">One-off</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-          </select>
-        </div>
+
         <div>
           <label for="t-notes" class="label">Notes</label>
           <textarea id="t-notes" class="input" rows="3" bind:value={f_notes} maxlength="5000"></textarea>
         </div>
+
         {#if formError}
           <p class="text-sm text-red-600">{formError}</p>
         {/if}

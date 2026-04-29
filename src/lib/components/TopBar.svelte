@@ -139,7 +139,7 @@
 
     <div class="mx-1 hidden h-6 w-px bg-slate-200 sm:block dark:bg-slate-700" />
 
-    <a href="/tasks" class="btn-ghost hidden !px-2 !py-1.5 sm:flex" title="Tasks" aria-label="Tasks">
+    <a href="/tasks" class="btn-ghost hidden !px-2 !py-1.5 sm:flex" title="Calendar" aria-label="Calendar">
       <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2-2h2a2 2 0 0 0 2 2" stroke-linecap="round" stroke-linejoin="round" />
         <path d="M9 12h6M9 16h4" stroke-linecap="round" />

@@ -471,7 +471,7 @@
     <section class="card p-4">
       <h2 class="mb-1 text-base font-semibold">Calendar feed</h2>
       <p class="mb-3 text-xs text-slate-500">
-        Subscribe from Google Calendar / Apple Calendar / Outlook to see your farm tasks in your normal calendar. Anyone with this URL can read your tasks — keep it private.
+        Subscribe from Google Calendar / Apple Calendar / Outlook to see your planned calendar entries in your normal calendar. Anyone with this URL can read your entries — keep it private.
       </p>
       {#if settings?.icalFeedToken}
         <div class="space-y-2">

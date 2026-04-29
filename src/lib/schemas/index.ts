@@ -311,7 +311,9 @@ export const createTaskSchema = z.object({
   due_at: z
     .string()
     .datetime({ offset: true })
-    .or(z.string().datetime()),
+    .or(z.string().datetime())
+    .optional()
+    .nullable(),
   location_id: z.string().uuid().nullable().optional(),
   recurrence: recurrenceSchema.default('none')
 });
@@ -341,7 +343,7 @@ export interface TaskRecord {
   id: string;
   title: string;
   notes: string | null;
-  due_at: string;
+  due_at: string | null;
   location_id: string | null;
   done_at: string | null;
   recurrence: Recurrence;
