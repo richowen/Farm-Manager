@@ -130,3 +130,20 @@ export function dismissToast(id: number): void {
 
 // ---- User settings (client-side cache) -------------------------------------
 export const settings = writable<UserSettings | null>(null);
+
+// ---- Overlay count ----------------------------------------------------------
+/**
+ * Count of "full-screen-ish" overlays currently open (detail panel, new
+ * location modal, batch forms, task editor, photo lightbox, etc.). When > 0
+ * the mobile tab bar is hidden so it doesn't eat screen space from a focused
+ * dialog. Components call `incrementOverlay()` on mount and
+ * `decrementOverlay()` on destroy.
+ */
+export const overlayCount = writable<number>(0);
+
+export function incrementOverlay(): void {
+  overlayCount.update((n) => n + 1);
+}
+export function decrementOverlay(): void {
+  overlayCount.update((n) => (n > 0 ? n - 1 : 0));
+}

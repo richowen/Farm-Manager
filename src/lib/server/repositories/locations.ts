@@ -2,6 +2,7 @@ import { query, withTransaction } from '../db';
 import type {
   CreateLocationInput,
   FieldUseRecord,
+  LineType,
   LocationKind,
   LocationRecord,
   UpdateLocationInput
@@ -18,6 +19,7 @@ interface LocationRow {
   color: string | null;
   notes: string | null;
   tags: string[] | null;
+  line_type: LineType | null;
   geometry_json: string;
   area_ha: string | null; // numeric comes across as string
   length_m: string | null;
@@ -56,6 +58,7 @@ function rowToRecord(row: LocationRow): LocationRecord {
     color: row.color,
     notes: row.notes,
     tags: row.tags ?? [],
+    line_type: row.line_type,
     geometry: JSON.parse(row.geometry_json),
     area_ha: row.area_ha === null ? null : Number(row.area_ha),
     length_m: row.length_m === null ? null : Number(row.length_m),
@@ -66,7 +69,7 @@ function rowToRecord(row: LocationRow): LocationRecord {
 }
 
 const SELECT_COLS = `
-  l.id, l.kind, l.name, l.color, l.notes, l.tags,
+  l.id, l.kind, l.name, l.color, l.notes, l.tags, l.line_type,
   ST_AsGeoJSON(l.geom)::text AS geometry_json,
   l.area_ha,
   CASE WHEN l.kind = 'line'
@@ -121,9 +124,10 @@ export async function createLocation(input: CreateLocationInput): Promise<Locati
     input.kind === 'field'
       ? 'ST_Area(ST_GeomFromGeoJSON($6)::geography) / 10000.0'
       : 'NULL';
+  const lineType = input.kind === 'line' ? input.line_type ?? null : null;
   const { rows } = await query<{ id: string }>(
-    `INSERT INTO locations (kind, name, color, notes, tags, geom, area_ha)
-     VALUES ($1, $2, $3, $4, $5::text[], ST_GeomFromGeoJSON($6)::geography, ${areaExpr})
+    `INSERT INTO locations (kind, name, color, notes, tags, geom, area_ha, line_type)
+     VALUES ($1, $2, $3, $4, $5::text[], ST_GeomFromGeoJSON($6)::geography, ${areaExpr}, $7)
      RETURNING id`,
     [
       input.kind,
@@ -131,7 +135,8 @@ export async function createLocation(input: CreateLocationInput): Promise<Locati
       input.color ?? null,
       input.notes ?? null,
       input.tags ?? [],
-      geomJson
+      geomJson,
+      lineType
     ]
   );
   const created = await getLocation(rows[0].id);
@@ -167,6 +172,10 @@ export async function updateLocation(
     sets.push(`tags = $${idx++}::text[]`);
     params.push(input.tags);
   }
+  if (input.line_type !== undefined) {
+    sets.push(`line_type = $${idx++}`);
+    params.push(input.line_type);
+  }
   if (input.geometry !== undefined) {
     sets.push(`geom = ST_GeomFromGeoJSON($${idx})::geography`);
     if (existing.kind === 'field') {
@@ -198,6 +207,8 @@ export interface BatchPatch {
   /** Which tag-merge strategy to apply when `tags` is set. */
   tagsMode?: 'replace' | 'add' | 'remove';
   tags?: string[];
+  /** Pass `null` to clear, `'pipe'`/`'drain'` to set. Undefined leaves as-is. */
+  line_type?: LineType | null;
 }
 
 export async function updateMany(
@@ -211,6 +222,15 @@ export async function updateMany(
       await client.query(
         'UPDATE locations SET color = $1 WHERE id = ANY($2::uuid[])',
         [patch.color, ids]
+      );
+    }
+    if (patch.line_type !== undefined) {
+      // Only affects rows with kind='line'; the CHECK constraint will reject
+      // attempts on other kinds, so scope the UPDATE defensively.
+      await client.query(
+        `UPDATE locations SET line_type = $1
+          WHERE id = ANY($2::uuid[]) AND kind = 'line'`,
+        [patch.line_type, ids]
       );
     }
     if (patch.tags !== undefined) {

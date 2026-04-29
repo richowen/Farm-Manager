@@ -5,6 +5,17 @@
 @layer base {
   :root {
     color-scheme: light dark;
+
+    /* Height to reserve above the bottom of the viewport on mobile so that
+     * floating UI (draw toolbar, FAB, selection chip, offline banner, etc.)
+     * clears the fixed bottom tab bar. Desktop uses 0. */
+    --fm-nav-inset: 0px;
+  }
+
+  @media (max-width: 639.98px) {
+    :root {
+      --fm-nav-inset: calc(3.5rem + env(safe-area-inset-bottom));
+    }
   }
 
   html,

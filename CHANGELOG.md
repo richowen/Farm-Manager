@@ -4,6 +4,64 @@ All notable changes are listed here. Follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] — 2026-04
+
+### Added
+
+- **Pipe / drain line subtypes.** The single "Line" draw button is replaced
+  with dedicated **Pipe** and **Drain** buttons. Pipes render as solid blue,
+  drains as dashed brown — styling is baked in so they stay legible against
+  satellite imagery regardless of the current colour mode. Legacy v0.2.0
+  line rows keep rendering with their own colour until you classify them.
+- **Branching lines.** A single pipe or drain feature can now have multiple
+  branches, each with its own endpoint(s). After drawing the first branch a
+  chip offers **+ Branch** / **Finish** / **Cancel**; subsequent branches
+  snap to existing vertices so they lock on cleanly. Saved as
+  `MultiLineString`; `ST_Length` totals the lot and the detail panel shows
+  both the total length and the branch count.
+- **Hidden-by-default map layer for lines.** Pipes and drains no longer
+  clutter the satellite view. A new toggle in the top bar turns them on or
+  off, and a small chip anchored to the bottom-left of the map summarises
+  how many are currently hidden so they're never forgotten about. The
+  setting is persisted per-user.
+- **Legacy line classification dialog.** First visit to Settings after
+  upgrading prompts you to bulk-assign any existing `line` rows to
+  **pipe** or **drain** (or leave them generic). A new `legacyLinesPrompted`
+  settings flag means the dialog never comes back once dismissed.
+- **First-boot `showLines` auto-show.** Installs that already had lines in
+  v0.2.0 get `showLines` flipped on automatically on the first settings load
+  so their existing drainage / pipework network stays visible after upgrade.
+  Fresh installs (no line rows) default to hidden.
+
+### Changed
+
+- **Mobile tab bar no longer overlaps bottom UI.** A new `--fm-nav-inset`
+  CSS variable reserves space on mobile so the draw toolbar, "I am here"
+  FAB, selection chip, use legend, and offline banner all clear the tab
+  bar. Full-screen-ish overlays (detail panel, new location modal, batch
+  forms, task editor) hide the tab bar while they're open via a new
+  reference-counted `overlayCount` store, so the previously-unreachable
+  **Save** / **Add event** buttons inside the detail panel now always
+  register.
+- **New `line_type` batch patch field.** `PATCH /api/locations/batch` now
+  accepts `patch.line_type` (`'pipe' | 'drain' | null`) so the classify
+  dialog can fix up every legacy row in one request.
+- Line stroke-width remains 4 px; drain dash array is `[8, 4]`.
+
+### Infra
+
+- Migration **0009** adds the nullable `line_type` column on `locations`,
+  a CHECK constraint scoping it to `kind = 'line'`, and a partial index for
+  the two non-null values. No geometry column changes — `geom` already
+  accepts `MultiLineString`.
+
+### Upgrade notes
+
+- Migration 0009 runs automatically on first boot; no manual step.
+- Any `line` rows saved in v0.2.0 stay valid. Visit **Settings** to
+  classify them as pipes or drains (or leave them generic — the prompt is
+  one-off and can be skipped).
+
 ## [0.2.0] — 2026-04
 
 ### Added

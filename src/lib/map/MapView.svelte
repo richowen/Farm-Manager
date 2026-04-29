@@ -44,9 +44,12 @@
   import BatchEventForm from '$lib/components/BatchEventForm.svelte';
   import BatchPropertyForm from '$lib/components/BatchPropertyForm.svelte';
   import TaskBanner from '$lib/components/TaskBanner.svelte';
+  import HiddenLinesChip from '$lib/components/HiddenLinesChip.svelte';
   import type {
     FieldGeometry,
+    LineGeometry,
     LineStringGeometry,
+    LineType,
     LocationRecord,
     PointGeometry
   } from '$lib/schemas';
@@ -65,12 +68,20 @@
   let pendingGeometry:
     | { kind: 'field'; geometry: FieldGeometry; tempLayer: import('leaflet').Layer }
     | { kind: 'shed'; geometry: PointGeometry; tempLayer: import('leaflet').Layer }
-    | { kind: 'line'; geometry: LineStringGeometry; tempLayer: import('leaflet').Layer }
+    | { kind: 'line'; geometry: LineGeometry; lineType: LineType | null; tempLayer: import('leaflet').Layer | null }
     | null = null;
   let showNewLocation = false;
   let showBatchEvent = false;
   let showBatchEdit = false;
   let hereBusy = false;
+
+  // ---- Branching line-draft state -----------------------------------------
+  /** Non-null while we're composing a pipe / drain. */
+  let lineDraftType: 'pipe' | 'drain' | null = null;
+  /** Each element is the coords array of one finished branch. */
+  let lineDraftBranches: Array<Array<[number, number] | [number, number, number]>> = [];
+  /** Persistent preview layers so the user sees what they've drawn. */
+  let lineDraftPreviewLayers: import('leaflet').Polyline[] = [];
   let iAmHerePreset: {
     location_id: string | null;
     coords: [number, number];
@@ -179,11 +190,15 @@
     }
   }
 
-  function renderAllLocations(): void {
+  function renderAllLocations(opts?: { showLinesOverride?: boolean }): void {
     if (!map) return;
     layerById.forEach((layer) => map!.removeLayer(layer));
     layerById.clear();
-    for (const loc of $locations) addLocationLayer(loc);
+    const showLines = opts?.showLinesOverride ?? ($settings?.showLines ?? false);
+    for (const loc of $locations) {
+      if (loc.kind === 'line' && !showLines) continue;
+      addLocationLayer(loc);
+    }
   }
 
   function styleFor(loc: LocationRecord): import('leaflet').PathOptions {
@@ -272,14 +287,18 @@
 
   // Re-render when locations list / selection / colourMode changes.
   $: if (map && $locationsLoaded) {
+    const showLines = $settings?.showLines ?? false;
     const storedIds = new Set($locations.map((l) => l.id));
     for (const [id, layer] of layerById) {
-      if (!storedIds.has(id)) {
+      const loc = $locations.find((l) => l.id === id);
+      const shouldBeShown = !!loc && (loc.kind !== 'line' || showLines);
+      if (!storedIds.has(id) || !shouldBeShown) {
         map.removeLayer(layer);
         layerById.delete(id);
       }
     }
     for (const loc of $locations) {
+      if (loc.kind === 'line' && !showLines) continue;
       if (!layerById.has(loc.id)) addLocationLayer(loc);
     }
   }
@@ -328,16 +347,73 @@
     map.pm.enableDraw('Marker', { snappable: false });
   }
 
-  function startDrawLine(): void {
-    if (!map) return;
-    drawMode.set('line');
-    map.pm.enableDraw('Line', {
+  function lineDrawOptions(type: 'pipe' | 'drain'): Record<string, unknown> {
+    const color = type === 'drain' ? '#92400e' : '#3b82f6';
+    const dash = type === 'drain' ? [8, 4] : undefined;
+    return {
       snappable: true,
       snapDistance: 20,
-      templineStyle: { color: '#3b82f6', weight: 3 },
-      hintlineStyle: { color: '#3b82f6', weight: 2, dashArray: [4, 6] },
-      pathOptions: { color: '#3b82f6', weight: 4 }
-    });
+      templineStyle: { color, weight: 3, ...(dash ? { dashArray: dash } : {}) },
+      hintlineStyle: { color, weight: 2, dashArray: [4, 6] },
+      pathOptions: { color, weight: 4, ...(dash ? { dashArray: dash } : {}) }
+    };
+  }
+
+  function startDrawPipe(): void {
+    if (!map) return;
+    cancelLineDraft(); // clear any stale draft
+    lineDraftType = 'pipe';
+    lineDraftBranches = [];
+    lineDraftPreviewLayers = [];
+    drawMode.set('line');
+    map.pm.enableDraw('Line', lineDrawOptions('pipe'));
+  }
+
+  function startDrawDrain(): void {
+    if (!map) return;
+    cancelLineDraft();
+    lineDraftType = 'drain';
+    lineDraftBranches = [];
+    lineDraftPreviewLayers = [];
+    drawMode.set('line');
+    map.pm.enableDraw('Line', lineDrawOptions('drain'));
+  }
+
+  function addAnotherBranch(): void {
+    if (!map || !lineDraftType) return;
+    drawMode.set('line');
+    map.pm.enableDraw('Line', lineDrawOptions(lineDraftType));
+  }
+
+  function finishLineDraft(): void {
+    if (!map || !lineDraftType || lineDraftBranches.length === 0) return;
+    map.pm.disableDraw();
+    const branches = lineDraftBranches;
+    const geometry: LineGeometry =
+      branches.length === 1
+        ? { type: 'LineString', coordinates: branches[0] }
+        : { type: 'MultiLineString', coordinates: branches };
+    pendingGeometry = {
+      kind: 'line',
+      geometry,
+      lineType: lineDraftType,
+      tempLayer: null
+    };
+    showNewLocation = true;
+    // Preview layers remain visible until save/cancel so the user sees what
+    // will be saved — cleaned up in handleNewLocationSave / cancel.
+  }
+
+  function cancelLineDraft(): void {
+    if (map) {
+      map.pm.disableDraw();
+      for (const l of lineDraftPreviewLayers) {
+        if (map.hasLayer(l)) map.removeLayer(l);
+      }
+    }
+    lineDraftPreviewLayers = [];
+    lineDraftBranches = [];
+    lineDraftType = null;
   }
 
   function toggleEdit(): void {
@@ -357,6 +433,7 @@
     if (!map) return;
     map.pm.disableDraw();
     map.pm.disableGlobalEditMode();
+    if (lineDraftType) cancelLineDraft();
     drawMode.set('idle');
   }
 
@@ -369,11 +446,32 @@
       try {
         if ((loc.kind === 'field' || loc.kind === 'line') && layer instanceof L.GeoJSON) {
           const newGeo = layer.toGeoJSON() as GeoJSON.FeatureCollection;
-          const first = newGeo.features[0];
-          if (first && first.geometry) {
+          let geometry: GeoJSON.Geometry | null = null;
+          if (loc.kind === 'line') {
+            // A MultiLineString round-trips through Leaflet as one
+            // LineString feature per branch — re-combine so the server
+            // still sees a single MultiLineString.
+            const lineFeats = newGeo.features.filter(
+              (f) => f.geometry?.type === 'LineString'
+            );
+            if (lineFeats.length === 1) {
+              geometry = lineFeats[0].geometry;
+            } else if (lineFeats.length > 1) {
+              geometry = {
+                type: 'MultiLineString',
+                coordinates: lineFeats.map(
+                  (f) => (f.geometry as GeoJSON.LineString).coordinates
+                )
+              };
+            }
+          } else {
+            const first = newGeo.features[0];
+            geometry = first?.geometry ?? null;
+          }
+          if (geometry) {
             updates.push(
               api
-                .updateLocation(id, { geometry: first.geometry as FieldGeometry })
+                .updateLocation(id, { geometry: geometry as FieldGeometry })
                 .then((u) => upsertLocation(u))
                 .catch((err) => {
                   console.error(err);
@@ -417,12 +515,38 @@
         pendingGeometry = { kind: 'field', geometry: geom, tempLayer: e.layer };
         showNewLocation = true;
       }
+      map.pm.disableDraw();
+      drawMode.set('idle');
     } else if (e.shape === 'Line') {
       const gj = (e.layer as L.GeoJSON).toGeoJSON?.() ?? (e.layer as unknown as { toGeoJSON(): GeoJSON.Feature }).toGeoJSON();
       const feature = gj as GeoJSON.Feature;
       const geom = feature.geometry as LineStringGeometry;
-      pendingGeometry = { kind: 'line', geometry: geom, tempLayer: e.layer };
-      showNewLocation = true;
+      if (lineDraftType) {
+        // Accumulate this branch as part of the current pipe/drain draft,
+        // keep a persistent preview on the map, and return to 'line' mode so
+        // the toolbar shows Add-another-branch / Finish.
+        lineDraftBranches = [...lineDraftBranches, geom.coordinates as Array<[number, number]>];
+        const color = lineDraftType === 'drain' ? '#92400e' : '#3b82f6';
+        const style: import('leaflet').PolylineOptions = {
+          color,
+          weight: 4,
+          opacity: 0.9,
+          ...(lineDraftType === 'drain' ? { dashArray: '8 4' } : {})
+        };
+        const latlngs = geom.coordinates.map((c) => [c[1], c[0]] as [number, number]);
+        const preview = L.polyline(latlngs, style).addTo(map);
+        lineDraftPreviewLayers = [...lineDraftPreviewLayers, preview];
+        // Remove the Geoman-drawn temp layer; preview replaces it.
+        if (map.hasLayer(e.layer)) map.removeLayer(e.layer);
+        map.pm.disableDraw();
+        drawMode.set('line');
+      } else {
+        // Legacy path — generic line, no subtype. Open the modal immediately.
+        pendingGeometry = { kind: 'line', geometry: geom, lineType: null, tempLayer: e.layer };
+        showNewLocation = true;
+        map.pm.disableDraw();
+        drawMode.set('idle');
+      }
     } else if (e.shape === 'Rectangle') {
       // Lasso-select path.
       const feature = (e.layer as L.GeoJSON).toGeoJSON?.() as GeoJSON.Feature | undefined;
@@ -434,14 +558,16 @@
         }
       }
       map.removeLayer(e.layer);
+      map.pm.disableDraw();
+      drawMode.set('idle');
     } else if (e.shape === 'Marker') {
       const ll = (e.layer as L.Marker).getLatLng();
       const geom: PointGeometry = { type: 'Point', coordinates: [ll.lng, ll.lat] };
       pendingGeometry = { kind: 'shed', geometry: geom, tempLayer: e.layer };
       showNewLocation = true;
+      map.pm.disableDraw();
+      drawMode.set('idle');
     }
-    map.pm.disableDraw();
-    drawMode.set('idle');
   }
 
   async function handleNewLocationSave(detail: {
@@ -462,16 +588,34 @@
         pendingGeometry.kind === 'field'
           ? await api.createLocation({ kind: 'field', ...common, geometry: pendingGeometry.geometry })
           : pendingGeometry.kind === 'line'
-          ? await api.createLocation({ kind: 'line', ...common, geometry: pendingGeometry.geometry })
+          ? await api.createLocation({
+              kind: 'line',
+              ...common,
+              line_type: pendingGeometry.lineType ?? undefined,
+              geometry: pendingGeometry.geometry
+            })
           : await api.createLocation({ kind: 'shed', ...common, geometry: pendingGeometry.geometry });
       upsertLocation(created);
+      // If the user just created a line while they had `showLines` off we
+      // want to make sure it's visible — flip the setting on persistently.
+      // Pass the new value into renderAllLocations explicitly rather than
+      // relying on subscription tick-order.
+      if (created.kind === 'line' && !($settings?.showLines ?? false)) {
+        settings.update((s) => (s ? { ...s, showLines: true } : s));
+        renderAllLocations({ showLinesOverride: true });
+        api.updateSettings({ showLines: true }).catch(() => {});
+      }
       selectedLocationId.set(created.id);
       toast(
         'success',
         created.kind === 'field'
           ? 'Field created.'
           : created.kind === 'line'
-          ? 'Line created.'
+          ? created.line_type === 'drain'
+            ? 'Drain created.'
+            : created.line_type === 'pipe'
+            ? 'Pipe created.'
+            : 'Line created.'
           : 'Shed created.'
       );
     } catch (err) {
@@ -482,14 +626,17 @@
         toast('error', 'Save failed. Please try again.');
       }
     } finally {
-      if (pendingGeometry && map) map.removeLayer(pendingGeometry.tempLayer);
+      if (pendingGeometry?.tempLayer && map) map.removeLayer(pendingGeometry.tempLayer);
+      // Clear line draft preview layers — the real rendered location takes over.
+      if (pendingGeometry?.kind === 'line') cancelLineDraft();
       pendingGeometry = null;
       showNewLocation = false;
     }
   }
 
   function handleNewLocationCancel(): void {
-    if (pendingGeometry && map) map.removeLayer(pendingGeometry.tempLayer);
+    if (pendingGeometry?.tempLayer && map) map.removeLayer(pendingGeometry.tempLayer);
+    if (pendingGeometry?.kind === 'line') cancelLineDraft();
     pendingGeometry = null;
     showNewLocation = false;
   }
@@ -574,6 +721,13 @@
     baseLayerChoice = baseLayerChoice === 'esri' ? 'osm' : 'esri';
     applyBaseLayer();
     api.updateSettings({ baseLayer: baseLayerChoice }).catch(() => {});
+  }
+
+  function toggleLines(): void {
+    const next = !($settings?.showLines ?? false);
+    settings.update((s) => (s ? { ...s, showLines: next } : s));
+    renderAllLocations({ showLinesOverride: next });
+    api.updateSettings({ showLines: next }).catch(() => {});
   }
 
   // Live measurement while drawing.
@@ -676,8 +830,10 @@
   <TopBar
     labelsVisible={labelsVisible}
     baseLayerChoice={baseLayerChoice}
+    showLines={$settings?.showLines ?? false}
     on:toggleLabels={toggleLabels}
     on:toggleBase={toggleBaseLayer}
+    on:toggleLines={toggleLines}
     on:fitAll={fitToAll}
   />
 
@@ -693,9 +849,14 @@
     liveLineM={liveLineM}
     selectModeActive={$multiSelectMode}
     colorMode={$colorMode}
+    lineDraftType={lineDraftType}
+    lineDraftBranchCount={lineDraftBranches.length}
     on:drawField={startDrawField}
     on:drawShed={startPlaceShed}
-    on:drawLine={startDrawLine}
+    on:drawPipe={startDrawPipe}
+    on:drawDrain={startDrawDrain}
+    on:addBranch={addAnotherBranch}
+    on:finishLine={finishLineDraft}
     on:edit={toggleEdit}
     on:save={saveEdits}
     on:cancel={cancelDraw}
@@ -727,6 +888,7 @@
   {#if showNewLocation && pendingGeometry}
     <NewLocationModal
       kind={pendingGeometry.kind}
+      lineType={pendingGeometry.kind === 'line' ? pendingGeometry.lineType : null}
       areaHa={pendingGeometry.kind === 'field' ? geometryToHectares(pendingGeometry.geometry) : null}
       lengthM={pendingGeometry.kind === 'line' ? lineLengthMeters(pendingGeometry.geometry) : null}
       on:save={(e) => handleNewLocationSave(e.detail)}
@@ -752,9 +914,12 @@
 
   <IAmHereFab busy={hereBusy} on:click={iAmHere} />
 
+  <HiddenLinesChip on:toggleLines={toggleLines} />
+
   {#if !$online}
     <div
-      class="pointer-events-none fixed bottom-3 left-1/2 z-[9000] -translate-x-1/2 rounded-full bg-amber-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg"
+      class="pointer-events-none fixed left-1/2 z-[9000] -translate-x-1/2 rounded-full bg-amber-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg"
+      style="bottom: calc(var(--fm-nav-inset) + 0.75rem);"
     >
       Offline — viewing cached data. Changes cannot be saved.
     </div>

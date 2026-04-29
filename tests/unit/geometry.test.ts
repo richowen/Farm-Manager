@@ -15,6 +15,7 @@ function field(id: string, coords: [number, number][]): LocationRecord {
     color: null,
     notes: null,
     tags: [],
+    line_type: null,
     geometry: { type: 'Polygon', coordinates: [coords] },
     area_ha: null,
     length_m: null,
@@ -98,6 +99,31 @@ describe('lineLengthMeters', () => {
     // ~111 m at the equator
     expect(m).toBeGreaterThan(100);
     expect(m).toBeLessThan(120);
+  });
+  it('sums the branch lengths of a MultiLineString', () => {
+    const single = lineLengthMeters({
+      type: 'LineString',
+      coordinates: [
+        [0, 0],
+        [0.001, 0]
+      ]
+    });
+    const multi = lineLengthMeters({
+      type: 'MultiLineString',
+      coordinates: [
+        [
+          [0, 0],
+          [0.001, 0]
+        ],
+        [
+          [0.001, 0],
+          [0.002, 0]
+        ]
+      ]
+    });
+    // The MultiLineString is two branches of the same size => roughly double.
+    expect(multi).toBeGreaterThan(single * 1.9);
+    expect(multi).toBeLessThan(single * 2.1);
   });
 });
 

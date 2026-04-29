@@ -17,11 +17,12 @@ export const PATCH: RequestHandler = async ({ request }) => {
 
   const { ids, patch, use } = parsed.data;
 
-  if (patch && (patch.tags !== undefined || patch.color !== undefined)) {
+  if (patch && (patch.tags !== undefined || patch.color !== undefined || patch.line_type !== undefined)) {
     await updateMany(ids, {
       color: patch.color ?? undefined,
       tags: patch.tags,
-      tagsMode: patch.tagsMode
+      tagsMode: patch.tagsMode,
+      line_type: patch.line_type
     });
   }
   if (use) {

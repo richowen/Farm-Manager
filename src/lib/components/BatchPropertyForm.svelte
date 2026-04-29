@@ -1,10 +1,13 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { api } from '$lib/client/api';
-  import { locations, settings, toast } from '$lib/stores';
+  import { locations, settings, toast, incrementOverlay, decrementOverlay } from '$lib/stores';
   import TagInput from './TagInput.svelte';
 
   export let ids: string[];
+
+  onMount(() => incrementOverlay());
+  onDestroy(() => decrementOverlay());
 
   const dispatch = createEventDispatcher<{
     saved: { count: number };

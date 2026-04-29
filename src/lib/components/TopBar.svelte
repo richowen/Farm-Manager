@@ -4,10 +4,12 @@
 
   export let labelsVisible: boolean;
   export let baseLayerChoice: 'esri' | 'osm';
+  export let showLines = false;
 
   const dispatch = createEventDispatcher<{
     toggleLabels: void;
     toggleBase: void;
+    toggleLines: void;
     fitAll: void;
   }>();
 
@@ -86,6 +88,19 @@
       <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="m2 7 10-5 10 5-10 5L2 7z" stroke-linejoin="round" />
         <path d="m2 17 10 5 10-5M2 12l10 5 10-5" stroke-linejoin="round" />
+      </svg>
+    </button>
+
+    <button
+      class="btn-ghost !px-2 !py-1.5"
+      class:!text-pasture-600={showLines}
+      aria-pressed={showLines}
+      title={showLines ? 'Hide pipes & drains' : 'Show pipes & drains'}
+      aria-label="Toggle pipes and drains"
+      on:click={() => dispatch('toggleLines')}
+    >
+      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 12c3 0 3-4 6-4s3 4 6 4 3-4 6-4" stroke-linecap="round" />
       </svg>
     </button>
 

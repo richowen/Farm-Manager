@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
-  import { selectedLocation, selectedLocationId, upsertLocation, toast, locations } from '$lib/stores';
+  import { createEventDispatcher, onDestroy } from 'svelte';
+  import { selectedLocation, selectedLocationId, upsertLocation, toast, locations, incrementOverlay, decrementOverlay } from '$lib/stores';
   import { api, ApiError } from '$lib/client/api';
   import {
     formatArea,
@@ -66,6 +66,26 @@
   $: loc = $selectedLocation as LocationRecord | null;
   // Show the Use tab only for fields.
   $: TABS = TABS_BASE.filter((t) => t.id !== 'use' || loc?.kind === 'field');
+
+  // Treat the detail panel as a full-screen overlay on mobile — hide the
+  // bottom tab bar while it's open.
+  let overlayIsActive = false;
+  $: {
+    const shouldBeActive = loc !== null;
+    if (shouldBeActive && !overlayIsActive) {
+      incrementOverlay();
+      overlayIsActive = true;
+    } else if (!shouldBeActive && overlayIsActive) {
+      decrementOverlay();
+      overlayIsActive = false;
+    }
+  }
+  onDestroy(() => {
+    if (overlayIsActive) {
+      decrementOverlay();
+      overlayIsActive = false;
+    }
+  });
 
   $: tagSuggestions = Array.from(new Set($locations.flatMap((l) => l.tags ?? []))).sort();
 
@@ -259,7 +279,15 @@
               </p>
             {:else if loc.kind === 'line'}
               <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                {#if loc.line_type === 'pipe'}
+                  Water pipe ·
+                {:else if loc.line_type === 'drain'}
+                  Drain ·
+                {/if}
                 {formatLength(loc.length_m)}
+                {#if loc.geometry.type === 'MultiLineString'}
+                  · {loc.geometry.coordinates.length} branches
+                {/if}
               </p>
             {/if}
             {#if loc.notes}
@@ -450,6 +478,18 @@
                 <dt class="text-xs uppercase tracking-wide text-slate-500">Length</dt>
                 <dd>{formatLength(loc.length_m)}</dd>
               </div>
+              {#if loc.line_type}
+                <div>
+                  <dt class="text-xs uppercase tracking-wide text-slate-500">Type</dt>
+                  <dd class="capitalize">{loc.line_type === 'pipe' ? 'Water pipe' : 'Drain'}</dd>
+                </div>
+              {/if}
+              {#if loc.geometry.type === 'MultiLineString'}
+                <div>
+                  <dt class="text-xs uppercase tracking-wide text-slate-500">Branches</dt>
+                  <dd>{loc.geometry.coordinates.length}</dd>
+                </div>
+              {/if}
             {/if}
           </dl>
         {:else if tab === 'geometry'}

@@ -8,11 +8,19 @@
   export let liveLineM: number | null = null;
   export let selectModeActive = false;
   export let colorMode: 'location' | 'use' = 'location';
+  /** Type of line currently being composed, if any — drives button colour and
+   *  the finish-chip labels. */
+  export let lineDraftType: 'pipe' | 'drain' | null = null;
+  /** How many branches have been drawn so far in the current line draft. */
+  export let lineDraftBranchCount = 0;
 
   const dispatch = createEventDispatcher<{
     drawField: void;
     drawShed: void;
-    drawLine: void;
+    drawPipe: void;
+    drawDrain: void;
+    addBranch: void;
+    finishLine: void;
     edit: void;
     save: void;
     cancel: void;
@@ -22,7 +30,10 @@
   }>();
 </script>
 
-<div class="pointer-events-none absolute bottom-4 left-1/2 z-[1000] -translate-x-1/2 pb-[env(safe-area-inset-bottom)]">
+<div
+  class="pointer-events-none absolute left-1/2 z-[1000] -translate-x-1/2"
+  style="bottom: calc(var(--fm-nav-inset) + 1rem);"
+>
   <div class="pointer-events-auto flex flex-col items-center gap-2">
     {#if mode === 'field' && liveAreaHa !== null}
       <div class="rounded-full bg-slate-900/90 px-3 py-1 text-xs font-medium text-white shadow">
@@ -63,16 +74,29 @@
         </button>
         <button
           class="btn-secondary min-h-11 min-w-11"
-          on:click={() => dispatch('drawLine')}
-          aria-label="Draw a line (pipe, drain, fence)"
-          title="Draw a line (pipe, drain, fence, track)"
+          on:click={() => dispatch('drawPipe')}
+          aria-label="Draw a water pipe"
+          title="Draw a water pipe (branching supported)"
         >
-          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 20 L10 14 L14 18 L20 4" stroke-linecap="round" stroke-linejoin="round" />
-            <circle cx="4" cy="20" r="1.5" fill="currentColor" />
-            <circle cx="20" cy="4" r="1.5" fill="currentColor" />
+          <svg class="h-5 w-5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12c3 0 3-4 6-4s3 4 6 4 3-4 6-4" stroke-linecap="round" />
+            <circle cx="3" cy="12" r="1.2" fill="currentColor" />
+            <circle cx="21" cy="8" r="1.2" fill="currentColor" />
           </svg>
-          <span class="hidden sm:inline">Line</span>
+          <span class="hidden sm:inline">Pipe</span>
+        </button>
+        <button
+          class="btn-secondary min-h-11 min-w-11"
+          on:click={() => dispatch('drawDrain')}
+          aria-label="Draw a drain"
+          title="Draw a drainage channel (branching supported)"
+        >
+          <svg class="h-5 w-5" style="color:#92400e" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 8 L10 8 L10 16 L21 16" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 3" />
+            <circle cx="3" cy="8" r="1.2" fill="currentColor" />
+            <circle cx="21" cy="16" r="1.2" fill="currentColor" />
+          </svg>
+          <span class="hidden sm:inline">Drain</span>
         </button>
         <div class="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" />
         <button
@@ -136,10 +160,25 @@
         <span class="px-2 text-sm text-slate-700 dark:text-slate-200">Tap where the shed is</span>
         <button class="btn-ghost" on:click={() => dispatch('cancel')}>Cancel</button>
       {:else if mode === 'line'}
-        <span class="px-2 text-sm text-slate-700 dark:text-slate-200">
-          Tap to add points &middot; double-tap to finish
-        </span>
-        <button class="btn-ghost" on:click={() => dispatch('cancel')}>Cancel</button>
+        {#if lineDraftBranchCount === 0}
+          <span class="px-2 text-sm text-slate-700 dark:text-slate-200">
+            {lineDraftType === 'drain' ? 'Draw drain' : 'Draw pipe'} · tap to add points, double-tap to finish
+          </span>
+          <button class="btn-ghost" on:click={() => dispatch('cancel')}>Cancel</button>
+        {:else}
+          <span class="px-2 text-sm text-slate-700 dark:text-slate-200">
+            {lineDraftBranchCount} {lineDraftBranchCount === 1 ? 'branch' : 'branches'} drawn
+          </span>
+          <button
+            class="btn-secondary"
+            on:click={() => dispatch('addBranch')}
+            title="Snap to an existing vertex to branch off"
+          >
+            + Branch
+          </button>
+          <button class="btn-primary" on:click={() => dispatch('finishLine')}>Finish</button>
+          <button class="btn-ghost" on:click={() => dispatch('cancel')}>Cancel</button>
+        {/if}
       {:else if mode === 'edit'}
         <span class="px-2 text-sm text-slate-700 dark:text-slate-200">Edit mode</span>
         <button class="btn-primary" on:click={() => dispatch('save')}>Done</button>

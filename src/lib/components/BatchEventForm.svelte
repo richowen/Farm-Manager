@@ -1,11 +1,14 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { api } from '$lib/client/api';
-  import { locations, toast } from '$lib/stores';
+  import { locations, toast, incrementOverlay, decrementOverlay } from '$lib/stores';
   import EventForm from './EventForm.svelte';
   import type { PhotoRef } from '$lib/schemas';
 
   export let ids: string[];
+
+  onMount(() => incrementOverlay());
+  onDestroy(() => decrementOverlay());
 
   const dispatch = createEventDispatcher<{
     saved: { batchId: string; count: number };

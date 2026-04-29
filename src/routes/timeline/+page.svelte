@@ -96,7 +96,7 @@
     </div>
   </header>
 
-  <main class="mx-auto max-w-3xl p-4">
+  <main class="mx-auto max-w-3xl p-4 pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-4">
     <!-- Filters -->
     <details class="card mb-4 p-3" open>
       <summary class="cursor-pointer select-none text-sm font-medium">Filters</summary>

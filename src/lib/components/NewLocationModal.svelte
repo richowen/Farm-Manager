@@ -1,21 +1,42 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { formatHa, formatAc, formatLength } from '$lib/utils/format';
-  import { locations } from '$lib/stores';
+  import { locations, incrementOverlay, decrementOverlay } from '$lib/stores';
   import TagInput from './TagInput.svelte';
 
   export let kind: 'field' | 'shed' | 'line';
   export let areaHa: number | null = null;
   export let lengthM: number | null = null;
+  /** For kind==='line', which subtype we're creating. Drives the default
+   *  colour, palette, and label. */
+  export let lineType: 'pipe' | 'drain' | null = null;
+
+  onMount(() => incrementOverlay());
+  onDestroy(() => decrementOverlay());
 
   const PALETTE_FIELD = ['#60ad6f', '#22c55e', '#16a34a', '#eab308', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280'];
   const PALETTE_SHED = ['#f59e0b', '#d97706', '#b45309', '#78350f', '#6b7280', '#374151', '#3b82f6', '#10b981', '#ec4899', '#ef4444'];
-  const PALETTE_LINE = ['#3b82f6', '#2563eb', '#1d4ed8', '#0ea5e9', '#06b6d4', '#14b8a6', '#64748b', '#475569', '#ef4444', '#a855f7'];
+  const PALETTE_PIPE = ['#3b82f6', '#2563eb', '#1d4ed8', '#0ea5e9', '#06b6d4', '#14b8a6', '#64748b', '#475569', '#ef4444', '#a855f7'];
+  const PALETTE_DRAIN = ['#92400e', '#b45309', '#a16207', '#78350f', '#57534e', '#44403c', '#64748b', '#1d4ed8', '#475569', '#6b7280'];
 
-  $: palette = kind === 'field' ? PALETTE_FIELD : kind === 'line' ? PALETTE_LINE : PALETTE_SHED;
+  $: palette =
+    kind === 'field'
+      ? PALETTE_FIELD
+      : kind === 'line'
+      ? lineType === 'drain'
+        ? PALETTE_DRAIN
+        : PALETTE_PIPE
+      : PALETTE_SHED;
 
   let name = '';
-  let color = kind === 'field' ? '#60ad6f' : kind === 'line' ? '#3b82f6' : '#f59e0b';
+  let color =
+    kind === 'field'
+      ? '#60ad6f'
+      : kind === 'line'
+      ? lineType === 'drain'
+        ? '#92400e'
+        : '#3b82f6'
+      : '#f59e0b';
   let notes = '';
   let tags: string[] = [];
   let error = '';
@@ -26,13 +47,25 @@
   ).sort();
 
   $: kindLabel =
-    kind === 'field' ? 'field' : kind === 'line' ? 'line' : 'shed';
+    kind === 'field'
+      ? 'field'
+      : kind === 'line'
+      ? lineType === 'drain'
+        ? 'drain'
+        : lineType === 'pipe'
+        ? 'water pipe'
+        : 'line'
+      : 'shed';
 
   $: namePlaceholder =
     kind === 'field'
       ? 'e.g. Top Meadow'
       : kind === 'line'
-      ? 'e.g. North drainage pipe'
+      ? lineType === 'drain'
+        ? 'e.g. North field drain'
+        : lineType === 'pipe'
+        ? 'e.g. House supply pipe'
+        : 'e.g. North drainage pipe'
       : 'e.g. Cattle Shed 1';
 
   const dispatch = createEventDispatcher<{
@@ -58,7 +91,7 @@
 <div
   role="dialog"
   aria-modal="true"
-  class="fixed inset-0 z-[2000] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
+  class="fixed inset-0 z-[2500] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
   on:click|self={() => dispatch('cancel')}
   on:keydown={(e) => e.key === 'Escape' && dispatch('cancel')}
 >

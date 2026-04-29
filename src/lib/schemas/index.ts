@@ -54,15 +54,30 @@ export const lineStringGeometrySchema = z.object({
   coordinates: z.array(position).min(2)
 });
 
+export const multiLineStringGeometrySchema = z.object({
+  type: z.literal('MultiLineString'),
+  coordinates: z.array(z.array(position).min(2)).min(1)
+});
+
 export const fieldGeometrySchema = z.union([polygonGeometrySchema, multiPolygonGeometrySchema]);
 export const shedGeometrySchema = pointGeometrySchema;
-export const lineGeometrySchema = lineStringGeometrySchema;
+// Line features may be a single branch or a branching network (MultiLineString).
+export const lineGeometrySchema = z.union([
+  lineStringGeometrySchema,
+  multiLineStringGeometrySchema
+]);
 
 export type PointGeometry = z.infer<typeof pointGeometrySchema>;
 export type PolygonGeometry = z.infer<typeof polygonGeometrySchema>;
 export type MultiPolygonGeometry = z.infer<typeof multiPolygonGeometrySchema>;
 export type LineStringGeometry = z.infer<typeof lineStringGeometrySchema>;
+export type MultiLineStringGeometry = z.infer<typeof multiLineStringGeometrySchema>;
+export type LineGeometry = z.infer<typeof lineGeometrySchema>;
 export type FieldGeometry = z.infer<typeof fieldGeometrySchema>;
+
+// User-pickable subtypes for line locations. Legacy v0.2.0 rows store NULL.
+export const lineTypeSchema = z.enum(['pipe', 'drain']);
+export type LineType = z.infer<typeof lineTypeSchema>;
 
 // ---- Locations --------------------------------------------------------------
 const hexColor = z
@@ -107,6 +122,7 @@ export const createLocationSchema = z.discriminatedUnion('kind', [
     color: hexColor,
     notes: z.string().max(5000).optional().nullable(),
     tags: tagsSchema.optional(),
+    line_type: lineTypeSchema.optional(),
     geometry: lineGeometrySchema
   })
 ]);
@@ -116,6 +132,7 @@ export const updateLocationSchema = z.object({
   color: hexColor,
   notes: z.string().max(5000).optional().nullable(),
   tags: tagsSchema.optional(),
+  line_type: lineTypeSchema.nullable().optional(),
   geometry: z.union([fieldGeometrySchema, shedGeometrySchema, lineGeometrySchema]).optional()
 });
 
@@ -180,7 +197,13 @@ export interface LocationRecord {
   color: string | null;
   notes: string | null;
   tags: string[];
-  geometry: PointGeometry | PolygonGeometry | MultiPolygonGeometry | LineStringGeometry;
+  line_type: LineType | null;
+  geometry:
+    | PointGeometry
+    | PolygonGeometry
+    | MultiPolygonGeometry
+    | LineStringGeometry
+    | MultiLineStringGeometry;
   area_ha: number | null;
   length_m: number | null;
   current_use: FieldUseRecord | null;
@@ -195,7 +218,8 @@ export const batchLocationPatchSchema = z.object({
     .object({
       tags: tagsSchema.optional(),
       tagsMode: z.enum(['replace', 'add', 'remove']).optional(),
-      color: hexColor
+      color: hexColor,
+      line_type: lineTypeSchema.nullable().optional()
     })
     .optional(),
   use: fieldUseInputSchema.optional()
@@ -343,7 +367,13 @@ export const userSettingsSchema = z.object({
   baseLayer: z.enum(['esri', 'osm']).default('esri'),
   useTypes: z.array(z.string().trim().min(1).max(64)).default([...DEFAULT_USE_TYPES]),
   useColors: z.record(z.string().regex(/^#[0-9a-fA-F]{6}$/)).default({}),
-  icalFeedToken: z.string().min(16).max(128).nullable().default(null)
+  icalFeedToken: z.string().min(16).max(128).nullable().default(null),
+  /** Whether pipe/drain lines are rendered on the map. Hidden by default so
+   *  they don't clutter the satellite imagery for non-line-focused use. */
+  showLines: z.boolean().default(false),
+  /** Set to `true` once the one-off legacy-line classification dialog has been
+   *  shown in Settings so it doesn't come back after the user dismisses it. */
+  legacyLinesPrompted: z.boolean().default(false)
 });
 
 export type UserSettings = z.infer<typeof userSettingsSchema>;

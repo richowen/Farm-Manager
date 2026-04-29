@@ -78,6 +78,28 @@ export function lineStyle(
   loc: LocationRecord,
   opts?: { colorMode?: 'location' | 'use'; settings?: UserSettings | null }
 ): PathOptions {
+  // Pipes and drains get distinct baked-in styling regardless of colour mode
+  // so they stay legible against satellite imagery. Legacy rows
+  // (line_type === null) fall back to location/use colouring.
+  if (loc.line_type === 'pipe') {
+    return {
+      color: '#3b82f6',
+      weight: 4,
+      opacity: 0.95,
+      lineCap: 'round',
+      lineJoin: 'round'
+    };
+  }
+  if (loc.line_type === 'drain') {
+    return {
+      color: '#92400e',
+      weight: 4,
+      opacity: 0.95,
+      dashArray: '8 4',
+      lineCap: 'butt',
+      lineJoin: 'round'
+    };
+  }
   const c =
     opts?.colorMode === 'use' ? colorForUse(loc, opts.settings) : colorFor(loc);
   return {

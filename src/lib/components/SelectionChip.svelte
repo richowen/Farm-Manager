@@ -19,7 +19,10 @@
 </script>
 
 {#if n > 0}
-  <div class="pointer-events-none absolute inset-x-0 bottom-24 z-[1050] flex justify-center px-3 pb-[env(safe-area-inset-bottom)] sm:bottom-24">
+  <div
+    class="pointer-events-none absolute inset-x-0 z-[1050] flex justify-center px-3"
+    style="bottom: calc(var(--fm-nav-inset) + 5rem);"
+  >
     <div
       class="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-slate-900/95 px-3 py-2 text-sm text-white shadow-xl ring-1 ring-white/10"
     >

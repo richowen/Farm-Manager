@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api, ApiError } from '$lib/client/api';
-  import { DEFAULT_USE_COLORS, type UserSettings } from '$lib/schemas';
+  import { DEFAULT_USE_COLORS, type LocationRecord, type UserSettings } from '$lib/schemas';
   import { toast } from '$lib/stores';
 
   let settings: UserSettings | null = null;
@@ -19,6 +19,11 @@
   // Use types
   let newUseType = '';
 
+  // Legacy line classification prompt (v0.2.1 upgrade).
+  let legacyLines: LocationRecord[] = [];
+  let legacyDialogOpen = false;
+  let legacyBusy = false;
+
   onMount(async () => {
     try {
       settings = await api.getSettings();
@@ -30,7 +35,55 @@
       toast('error', 'Could not load settings.');
     }
     theme = (localStorage.getItem('theme') as typeof theme) ?? 'system';
+
+    // Check for unclassified legacy line rows once per install — show the
+    // bulk-assign dialog on first visit after upgrading to 0.2.1.
+    if (settings && !settings.legacyLinesPrompted) {
+      try {
+        const { items } = await api.listLocations();
+        legacyLines = items.filter(
+          (l) => l.kind === 'line' && !l.line_type
+        );
+        if (legacyLines.length > 0) {
+          legacyDialogOpen = true;
+        } else {
+          // No legacy rows → flip the flag so we don't re-check next load.
+          await api.updateSettings({ legacyLinesPrompted: true });
+          if (settings) settings = { ...settings, legacyLinesPrompted: true };
+        }
+      } catch {
+        /* non-fatal */
+      }
+    }
   });
+
+  async function classifyLegacy(
+    lineType: 'pipe' | 'drain' | null
+  ): Promise<void> {
+    legacyBusy = true;
+    try {
+      if (lineType && legacyLines.length > 0) {
+        const ids = legacyLines.map((l) => l.id);
+        const color = lineType === 'pipe' ? '#3b82f6' : '#92400e';
+        await api.batchLocationsPatch({
+          ids,
+          patch: { line_type: lineType, color }
+        });
+      }
+      await api.updateSettings({ legacyLinesPrompted: true });
+      if (settings) settings = { ...settings, legacyLinesPrompted: true };
+      legacyDialogOpen = false;
+      if (lineType) {
+        toast('success', `Updated ${legacyLines.length} lines.`);
+      }
+      legacyLines = [];
+    } catch (err) {
+      console.error(err);
+      toast('error', 'Could not update legacy lines.');
+    } finally {
+      legacyBusy = false;
+    }
+  }
 
   async function saveSettings(): Promise<void> {
     if (!settings) return;
@@ -256,7 +309,7 @@
   <title>Settings — Farm Manager</title>
 </svelte:head>
 
-<div class="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20">
+<div class="min-h-screen bg-slate-50 dark:bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-4">
   <header class="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
     <div class="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
       <a href="/" class="btn-ghost !p-2" aria-label="Back to map">
@@ -472,3 +525,51 @@
     </section>
   </main>
 </div>
+
+{#if legacyDialogOpen}
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
+  <div
+    role="dialog"
+    aria-modal="true"
+    class="fixed inset-0 z-[2500] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+    on:keydown={(e) => e.key === 'Escape' && !legacyBusy && classifyLegacy(null)}
+  >
+    <div class="card w-full max-w-md p-5 sm:rounded-2xl">
+      <h2 class="text-lg font-semibold">Classify existing lines</h2>
+      <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+        Farm Manager now separates lines into <strong>water pipes</strong> and
+        <strong>drains</strong>. You have
+        <strong>{legacyLines.length}</strong>
+        existing line{legacyLines.length === 1 ? '' : 's'} to classify.
+      </p>
+      <p class="mt-2 text-xs text-slate-500">
+        You can change an individual line's type later from its detail panel.
+      </p>
+      <div class="mt-4 flex flex-col gap-2">
+        <button
+          class="btn-primary"
+          style="background:#3b82f6"
+          disabled={legacyBusy}
+          on:click={() => classifyLegacy('pipe')}
+        >
+          {legacyBusy ? '…' : `Assign all to water pipe (${legacyLines.length})`}
+        </button>
+        <button
+          class="btn-primary"
+          style="background:#92400e"
+          disabled={legacyBusy}
+          on:click={() => classifyLegacy('drain')}
+        >
+          {legacyBusy ? '…' : `Assign all to drain (${legacyLines.length})`}
+        </button>
+        <button
+          class="btn-ghost"
+          disabled={legacyBusy}
+          on:click={() => classifyLegacy(null)}
+        >
+          Leave generic — do later
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

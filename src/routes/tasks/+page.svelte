@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { api, ApiError } from '$lib/client/api';
-  import { locations, toast } from '$lib/stores';
+  import { locations, toast, incrementOverlay, decrementOverlay } from '$lib/stores';
   import type { LocationRecord, Recurrence, TaskRecord } from '$lib/schemas';
   import { formatDate, formatDateTime, formatRelative } from '$lib/utils/format';
 
@@ -209,13 +209,31 @@
   function counts(key: FilterKey): number {
     return filtered(allTasks, key).length;
   }
+
+  // Hide the mobile tab bar while the task editor is open.
+  let formOverlayActive = false;
+  $: {
+    if (showForm && !formOverlayActive) {
+      incrementOverlay();
+      formOverlayActive = true;
+    } else if (!showForm && formOverlayActive) {
+      decrementOverlay();
+      formOverlayActive = false;
+    }
+  }
+  onDestroy(() => {
+    if (formOverlayActive) {
+      decrementOverlay();
+      formOverlayActive = false;
+    }
+  });
 </script>
 
 <svelte:head>
   <title>Tasks — Farm Manager</title>
 </svelte:head>
 
-<div class="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20">
+<div class="min-h-screen bg-slate-50 dark:bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-4">
   <header class="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
     <div class="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
       <a href="/" class="btn-ghost !p-2" aria-label="Back to map">

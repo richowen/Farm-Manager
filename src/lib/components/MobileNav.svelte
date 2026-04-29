@@ -1,7 +1,9 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { overlayCount } from '$lib/stores';
 
   $: pathname = $page.url.pathname;
+  $: hidden = $overlayCount > 0;
 
   const items: Array<{ href: string; label: string; icon: string; match: (p: string) => boolean }> = [
     {
@@ -33,6 +35,8 @@
 
 <nav
   class="fixed inset-x-0 bottom-0 z-[2000] flex items-stretch border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_12px_rgba(0,0,0,0.08)] backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 sm:hidden"
+  class:hidden={hidden}
+  aria-hidden={hidden}
 >
   {#each items as item}
     {@const active = item.match(pathname)}

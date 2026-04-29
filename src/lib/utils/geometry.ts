@@ -4,8 +4,10 @@ import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import booleanIntersects from '@turf/boolean-intersects';
 import type {
   FieldGeometry,
+  LineGeometry,
   LineStringGeometry,
   LocationRecord,
+  MultiLineStringGeometry,
   PointGeometry
 } from '$lib/schemas';
 
@@ -13,16 +15,20 @@ import type {
  *  Returns 0 for non-polygon inputs so callers don't have to type-narrow.
  */
 export function geometryToHectares(
-  g: FieldGeometry | PointGeometry | LineStringGeometry | null | undefined
+  g: FieldGeometry | PointGeometry | LineGeometry | null | undefined
 ): number {
   if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return 0;
   const sqm = area({ type: 'Feature', geometry: g, properties: {} });
   return sqm / 10_000;
 }
 
-/** Compute a LineString length in metres. Turf returns km by default. */
-export function lineLengthMeters(g: LineStringGeometry | null | undefined): number {
-  if (!g || g.type !== 'LineString') return 0;
+/** Compute total length in metres for a LineString or MultiLineString.
+ *  Turf's `length` accepts both natively. Returns 0 for anything else.
+ */
+export function lineLengthMeters(
+  g: LineStringGeometry | MultiLineStringGeometry | LineGeometry | null | undefined
+): number {
+  if (!g || (g.type !== 'LineString' && g.type !== 'MultiLineString')) return 0;
   const km = length({ type: 'Feature', geometry: g, properties: {} }, { units: 'kilometers' });
   return km * 1000;
 }

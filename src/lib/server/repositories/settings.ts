@@ -13,7 +13,7 @@ interface SettingsRow {
 }
 
 /** Merge stored data with defaults + parse. Defaults handle migrations to new
- * keys (useTypes, useColors, icalFeedToken, …) without a DB change. */
+ *  keys (useTypes, useColors, icalFeedToken, …) without a DB change. */
 export async function getSettings(): Promise<UserSettings> {
   const { rows } = await query<SettingsRow>('SELECT data FROM settings WHERE id = 1');
   const raw = rows[0]?.data ?? {};
@@ -25,6 +25,53 @@ export async function getSettings(): Promise<UserSettings> {
     icalFeedToken: null,
     ...raw
   });
+}
+
+/**
+ * One-off post-migration hook (called from migrate.ts).
+ *
+ * Flips `showLines` on idempotently for v0.2.0 → v0.2.1 upgraders that
+ * already have `line`-kind locations, so their existing pipes/drains stay
+ * visible after the upgrade. Fresh installs (no line rows yet) keep the
+ * zod default of `false`. Runs only on the first invocation — once the
+ * `showLines` key is present in the stored JSON it's a no-op.
+ *
+ * Safe to call unconditionally; it writes at most one UPDATE per install.
+ */
+export async function ensureShowLinesFlag(): Promise<void> {
+  let raw: Record<string, unknown>;
+  try {
+    const { rows } = await query<SettingsRow>('SELECT data FROM settings WHERE id = 1');
+    raw = rows[0]?.data ?? {};
+  } catch {
+    return;
+  }
+  if (Object.prototype.hasOwnProperty.call(raw, 'showLines')) return;
+
+  let hasLines = false;
+  try {
+    const r = await query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM locations WHERE kind = 'line'`
+    );
+    hasLines = Number(r.rows[0]?.n ?? '0') > 0;
+  } catch {
+    hasLines = false;
+  }
+
+  const merged = userSettingsSchema.parse({
+    unitsPrimary: 'ha',
+    baseLayer: 'esri',
+    useTypes: [...DEFAULT_USE_TYPES],
+    useColors: {},
+    icalFeedToken: null,
+    ...raw,
+    showLines: hasLines
+  });
+  try {
+    await query(`UPDATE settings SET data = $1::jsonb WHERE id = 1`, [JSON.stringify(merged)]);
+  } catch {
+    // Persist is best-effort — on failure we just re-try next boot.
+  }
 }
 
 export async function updateSettings(patch: UpdateSettingsInput): Promise<UserSettings> {

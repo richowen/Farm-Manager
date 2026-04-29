@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { pool, withTransaction } from './db';
 import { logger } from './logger';
+import { ensureShowLinesFlag } from './repositories/settings';
 
 /**
  * Very small forward-only migration runner. Reads *.sql files in lexicographic
@@ -69,6 +70,14 @@ export async function ensureMigrated(): Promise<void> {
       await client.query('INSERT INTO _migrations(name) VALUES ($1)', [file]);
     });
     logger.info({ file }, 'migration applied');
+  }
+
+  // Post-migration data hooks. Each one is idempotent and no-ops on
+  // subsequent boots — keep them cheap (single SELECT + optional UPDATE).
+  try {
+    await ensureShowLinesFlag();
+  } catch (err) {
+    logger.warn({ err }, 'ensureShowLinesFlag failed — non-fatal');
   }
 }
 

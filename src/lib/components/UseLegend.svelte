@@ -11,7 +11,10 @@
 </script>
 
 {#if types.length > 0}
-  <div class="pointer-events-auto absolute bottom-24 left-3 z-[1000] rounded-lg bg-white/95 p-2 text-xs shadow ring-1 ring-black/5 backdrop-blur dark:bg-slate-800/95">
+  <div
+    class="pointer-events-auto absolute left-3 z-[1000] rounded-lg bg-white/95 p-2 text-xs shadow ring-1 ring-black/5 backdrop-blur dark:bg-slate-800/95"
+    style="bottom: calc(var(--fm-nav-inset) + 6rem);"
+  >
     <p class="mb-1 font-medium text-slate-700 dark:text-slate-300">Current use</p>
     <ul class="space-y-0.5">
       {#each types as t}
