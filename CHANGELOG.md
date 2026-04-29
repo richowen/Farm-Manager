@@ -4,6 +4,17 @@ All notable changes are listed here. Follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] — 2026-04
+
+### Fixed
+
+- **Client-side image resize before upload.** Photos are now downscaled to a
+  maximum of 1920×1920 px and re-encoded as JPEG (quality 85) in the browser
+  before being sent to the server. This prevents SvelteKit 413 errors when
+  uploading large images (e.g. 887 KB uncompressed) that exceed the default
+  524 KB body limit. EXIF orientation is applied during resize so photos from
+  iOS/Android cameras are always correctly rotated.
+
 ## [0.3.0] — 2026-04
 
 ### Added
