@@ -65,13 +65,13 @@
   <Config
     Name="ORIGIN"
     Target="ORIGIN"
-    Default=""
+    Default="http://192.168.1.X:3000"
     Mode=""
-    Description="(Optional but recommended) The public URL of your app, e.g. https://farm.yourdomain.com — required for secure (HTTPS) cookies when accessed via a reverse proxy such as SWAG, Nginx Proxy Manager, or Cloudflare Tunnel. Leave blank for plain HTTP local access."
+    Description="REQUIRED. The URL used to access this app, matching exactly what you type in the browser. For local LAN access use your server IP: http://192.168.1.X:3000 (replace X). If accessed via HTTPS reverse proxy use that URL instead, e.g. https://farm.yourdomain.com. Cannot be left blank — SvelteKit will refuse to start."
     Type="Variable"
-    Display="advanced"
-    Required="false"
-    Mask="false"></Config>
+    Display="always"
+    Required="true"
+    Mask="false">http://192.168.1.X:3000</Config>
 
   <Config
     Name="PUBLIC_APP_NAME"

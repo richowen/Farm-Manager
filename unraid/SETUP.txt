@@ -82,7 +82,11 @@ b. Load or manually fill from farm-manager-app.xml:
                       (replace <DB_PASSWORD> with what you set in Step 4)
        APP_PASSWORD   <the password you want to log in with>
        SESSION_SECRET <the hex string from Step 3>
-       ORIGIN         (optional) https://farm.yourdomain.com
+       ORIGIN         http://192.168.1.X:3000
+                      ** REQUIRED — cannot be blank. Use your Unraid server's
+                      LAN IP and the port you mapped (default 3000). If you
+                      access via HTTPS reverse proxy, use that URL instead.
+                      SvelteKit refuses to start without a valid URL here. **
        PUBLIC_APP_NAME Farm Manager  (or whatever you like)
 
 c. Click Apply.
