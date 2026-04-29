@@ -11,14 +11,23 @@ export const POST: RequestHandler = async ({ request }) => {
   let form: FormData;
   try {
     form = await request.formData();
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, 'request.formData() failed — likely malformed multipart or connection reset');
     throw error(400, 'invalid_multipart');
   }
   const f = form.get('file');
   if (!(f instanceof File)) throw error(400, 'missing_file');
 
+  logger.info(
+    { name: f.name, type: f.type, size: f.size },
+    'upload received'
+  );
+
   const check = validateUpload(f);
-  if (!check.ok) throw error(400, check.reason);
+  if (!check.ok) {
+    logger.warn({ name: f.name, type: f.type, size: f.size, reason: check.reason }, 'upload rejected by validation');
+    throw error(400, check.reason);
+  }
 
   try {
     const ref = await saveUpload(f);

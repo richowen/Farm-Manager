@@ -1,6 +1,6 @@
 {
   "name": "farm-manager",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "description": "Self-hosted PWA for drawing and managing farm fields, sheds, and timestamped events on a satellite map.",

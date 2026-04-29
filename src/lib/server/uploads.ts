@@ -21,7 +21,13 @@ const MAX_BYTES = () => env().UPLOAD_MAX_MB * 1024 * 1024;
 
 // Only allow images — we enforce both by incoming mime-type and by sharp's
 // own output, which is always JPEG after processing.
-const ACCEPTED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ACCEPTED_MIMES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif'
+]);
 
 /** Validate the incoming File before touching sharp/disk. */
 export function validateUpload(file: File): { ok: true } | { ok: false; reason: string } {

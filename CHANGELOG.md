@@ -4,6 +4,19 @@ All notable changes are listed here. Follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] — 2026-04
+
+### Fixed
+
+- **HEIC/HEIF photo uploads now accepted.** `image/heic` and `image/heif`
+  (the default format on iPhones/iPads) were missing from the accepted MIME
+  set, causing a silent `unsupported_type` 400. Sharp re-encodes them to
+  JPEG as with other formats — nothing changes on disk.
+- **Upload errors are now logged with context.** `request.formData()` failures
+  and validation rejections now emit a structured log line (filename, MIME
+  type, size, reason) so the actual cause is visible in `docker logs` rather
+  than appearing as a generic `invalid_multipart` with no detail.
+
 ## [0.2.1] — 2026-04
 
 ### Added
