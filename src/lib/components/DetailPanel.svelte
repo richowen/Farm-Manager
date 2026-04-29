@@ -12,7 +12,9 @@
     EVENT_TYPES,
     type EventRecord,
     type LocationRecord,
-    type PhotoRef
+    type PhotoRef,
+    type TaskRecord,
+    type PinRecord
   } from '$lib/schemas';
   import EventRow from './EventRow.svelte';
   import EventForm from './EventForm.svelte';
@@ -30,7 +32,7 @@
     iAmHereEventCreated: { location_id: string | null };
   }>();
 
-  let tab: 'events' | 'details' | 'use' | 'geometry' = 'events';
+  let tab: 'events' | 'calendar' | 'pins' | 'details' | 'use' | 'geometry' = 'events';
 
   // Event list state
   let events: EventRecord[] = [];
@@ -45,6 +47,54 @@
   let filterFrom = '';
   let filterTo = '';
 
+  // Calendar tab state
+  let locTasks: TaskRecord[] = [];
+  let locTasksLoading = false;
+  let locTasksLoaded = false;
+
+  // Pins tab state
+  let locPins: PinRecord[] = [];
+  let locPinsLoading = false;
+  let locPinsLoaded = false;
+
+  async function loadLocTasks(): Promise<void> {
+    if (!loc) return;
+    locTasksLoading = true;
+    try {
+      const res = await api.listTasks('all', false, loc.id);
+      locTasks = res.items;
+      locTasksLoaded = true;
+    } catch {
+      /* ignore */
+    } finally {
+      locTasksLoading = false;
+    }
+  }
+
+  async function loadLocPins(): Promise<void> {
+    if (!loc) return;
+    locPinsLoading = true;
+    try {
+      const res = await api.listPins({ location: loc.id });
+      locPins = res.items;
+      locPinsLoaded = true;
+    } catch {
+      /* ignore */
+    } finally {
+      locPinsLoading = false;
+    }
+  }
+
+  async function completeLocTask(t: TaskRecord): Promise<void> {
+    try {
+      await api.completeTask(t.id);
+      locTasks = locTasks.map((x) => x.id === t.id ? { ...x, done_at: new Date().toISOString() } : x);
+      toast('success', 'Marked done.');
+    } catch {
+      toast('error', 'Could not complete.');
+    }
+  }
+
   // Edit name/colour/notes/tags
   let editingMeta = false;
   let metaName = '';
@@ -52,8 +102,10 @@
   let metaNotes = '';
   let metaTags: string[] = [];
 
-  const TABS_BASE: Array<{ id: 'events' | 'details' | 'use' | 'geometry'; label: string }> = [
+  const TABS_BASE: Array<{ id: 'events' | 'calendar' | 'pins' | 'details' | 'use' | 'geometry'; label: string }> = [
     { id: 'events', label: 'Events' },
+    { id: 'calendar', label: 'Calendar' },
+    { id: 'pins', label: 'Pins' },
     { id: 'use', label: 'Use' },
     { id: 'details', label: 'Details' },
     { id: 'geometry', label: 'Geometry' }
@@ -99,8 +151,16 @@
     metaNotes = loc.notes ?? '';
     metaTags = (loc.tags ?? []).slice();
     editingMeta = false;
+    locTasks = [];
+    locTasksLoaded = false;
+    locPins = [];
+    locPinsLoaded = false;
     loadEvents();
   }
+
+  // Lazy-load Calendar and Pins tabs on first open.
+  $: if (tab === 'calendar' && !locTasksLoaded && !locTasksLoading) loadLocTasks();
+  $: if (tab === 'pins' && !locPinsLoaded && !locPinsLoading) loadLocPins();
 
   // Auto-open an "I am here" add form when a preset arrives for this location.
   $: if (loc && iAmHerePreset && iAmHerePreset.location_id === loc.id && !adding) {
@@ -378,10 +438,10 @@
       </div>
 
       <!-- Tabs -->
-      <div class="flex gap-1 border-b border-slate-200 px-2 pt-2 dark:border-slate-700">
+      <div class="flex gap-1 overflow-x-auto border-b border-slate-200 px-2 pt-2 dark:border-slate-700">
         {#each TABS as t}
           <button
-            class="rounded-t-md px-3 py-2 text-sm font-medium"
+            class="shrink-0 rounded-t-md px-3 py-2 text-sm font-medium"
             class:bg-pasture-600={tab === t.id}
             class:text-white={tab === t.id}
             class:text-slate-600={tab !== t.id}
@@ -484,6 +544,90 @@
               {eventsLoading ? 'Loading…' : 'Load older'}
             </button>
           {/if}
+        {:else if tab === 'calendar'}
+          {#if locTasksLoading}
+            <p class="text-sm text-slate-500">Loading…</p>
+          {:else if locTasks.length === 0}
+            <p class="text-sm text-slate-500">No calendar entries for this location. Create one from the <a class="text-pasture-600 hover:underline" href="/tasks">Calendar</a> page and set the location.</p>
+          {:else}
+            {@const openTasks = locTasks.filter((t) => !t.done_at)}
+            {@const doneTasks = locTasks.filter((t) => !!t.done_at)}
+            {#if openTasks.length > 0}
+              <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Planned</h3>
+              <ul class="mb-4 divide-y divide-slate-200 rounded-lg border border-slate-200 overflow-hidden dark:divide-slate-700 dark:border-slate-700">
+                {#each openTasks as t (t.id)}
+                  <li class="flex items-start gap-3 bg-white p-3 dark:bg-slate-800">
+                    <button
+                      class="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 border-pasture-600"
+                      aria-label="Mark done"
+                      on:click={() => completeLocTask(t)}
+                    ></button>
+                    <div class="min-w-0 flex-1">
+                      <p class="text-sm font-medium">{t.title}</p>
+                      {#if t.due_at}
+                        <p class="text-xs text-slate-500">{formatDate(t.due_at)}</p>
+                      {/if}
+                      {#if t.notes}
+                        <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{t.notes}</p>
+                      {/if}
+                    </div>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+            {#if doneTasks.length > 0}
+              <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Done</h3>
+              <ul class="divide-y divide-slate-200 rounded-lg border border-slate-200 overflow-hidden dark:divide-slate-700 dark:border-slate-700">
+                {#each doneTasks as t (t.id)}
+                  <li class="flex items-start gap-3 bg-white p-3 dark:bg-slate-800">
+                    <div class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-pasture-600">
+                      <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 text-white"><path fill="currentColor" d="m9 16.2-3.5-3.6L4 14l5 5 11-11-1.4-1.4z"/></svg>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <p class="text-sm font-medium line-through text-slate-400">{t.title}</p>
+                      {#if t.done_at}
+                        <p class="text-xs text-slate-400">Done {formatRelative(t.done_at)}</p>
+                      {/if}
+                    </div>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          {/if}
+
+        {:else if tab === 'pins'}
+          {#if locPinsLoading}
+            <p class="text-sm text-slate-500">Loading…</p>
+          {:else if locPins.length === 0}
+            <p class="text-sm text-slate-500">No pins for this location. Drop a pin on the map near this location and set its location field.</p>
+          {:else}
+            <ul class="divide-y divide-slate-200 rounded-lg border border-slate-200 overflow-hidden dark:divide-slate-700 dark:border-slate-700">
+              {#each locPins as pin (pin.id)}
+                <li class="flex items-start gap-3 bg-white p-3 dark:bg-slate-800">
+                  <span
+                    class="mt-0.5 shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                    class:bg-amber-100={pin.status === 'todo'}
+                    class:text-amber-800={pin.status === 'todo'}
+                    class:bg-pasture-100={pin.status === 'done'}
+                    class:text-pasture-800={pin.status === 'done'}
+                    class:bg-slate-100={pin.status === 'note'}
+                    class:text-slate-700={pin.status === 'note'}
+                  >{pin.status}</span>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium">{pin.title ?? '(untitled)'}</p>
+                    {#if pin.notes}
+                      <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{pin.notes}</p>
+                    {/if}
+                    {#if pin.category}
+                      <p class="mt-0.5 text-xs text-slate-400">{pin.category}</p>
+                    {/if}
+                    <a class="mt-0.5 block text-xs text-pasture-600 hover:underline" href="/?pin={pin.id}">View on map</a>
+                  </div>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+
         {:else if tab === 'use' && loc.kind === 'field'}
           <FieldUsePanel loc={loc} on:changed={refreshLocationFromServer} />
         {:else if tab === 'details'}

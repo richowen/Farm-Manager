@@ -4,6 +4,7 @@ import { createTaskSchema } from '$lib/schemas';
 import {
   counts,
   createTask,
+  listAllByLocation,
   listTasks,
   type TaskFilter
 } from '$lib/server/repositories/tasks';
@@ -11,6 +12,11 @@ import {
 const VALID_FILTERS = new Set<TaskFilter>(['open', 'due', 'overdue', 'done', 'all']);
 
 export const GET: RequestHandler = async ({ url }) => {
+  const locationId = url.searchParams.get('location_id');
+  if (locationId) {
+    const items = await listAllByLocation(locationId);
+    return json({ items });
+  }
   const filterRaw = url.searchParams.get('filter') ?? 'all';
   const filter = (VALID_FILTERS.has(filterRaw as TaskFilter) ? filterRaw : 'all') as TaskFilter;
   const items = await listTasks(filter);

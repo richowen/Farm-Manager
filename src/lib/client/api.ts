@@ -189,13 +189,15 @@ export const api = {
   // ---- Tasks ------------------------------------------------------------
   listTasks(
     filter: 'open' | 'due' | 'overdue' | 'done' | 'all' = 'all',
-    withCounts = false
+    withCounts = false,
+    locationId?: string
   ): Promise<{
     items: TaskRecord[];
     counts?: { overdue: number; dueToday: number; open: number };
   }> {
     const q = new URLSearchParams({ filter });
     if (withCounts) q.set('counts', '1');
+    if (locationId) q.set('location_id', locationId);
     return doFetch(`/api/tasks?${q.toString()}`);
   },
   createTask(input: CreateTaskInput): Promise<TaskRecord> {

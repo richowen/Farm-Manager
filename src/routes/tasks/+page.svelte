@@ -46,15 +46,19 @@
     }
   });
 
+  let donePins: PinRecord[] = [];
+
   async function reload(): Promise<void> {
     loading = true;
     try {
-      const [taskRes, pinRes] = await Promise.all([
+      const [taskRes, todoPinRes, donePinRes] = await Promise.all([
         api.listTasks('all'),
-        api.listPins({ status: 'todo' })
+        api.listPins({ status: 'todo' }),
+        api.listPins({ status: 'done' })
       ]);
       allTasks = taskRes.items;
-      todoPins = pinRes.items;
+      todoPins = todoPinRes.items;
+      donePins = donePinRes.items;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         window.location.href = '/login';
@@ -185,10 +189,11 @@
     return allLocations.find((l) => l.id === id)?.name ?? null;
   }
 
-  function counts(key: FilterKey): number {
-    if (key === 'todo') return todoPins.length;
-    return filtered(allTasks, key).length;
-  }
+  $: tabCounts = {
+    planned: allTasks.filter((t) => !t.done_at).length,
+    done: allTasks.filter((t) => !!t.done_at).length + donePins.length,
+    todo: todoPins.length
+  } as Record<FilterKey, number>;
 
   async function completePinTodo(pin: PinRecord): Promise<void> {
     try {
@@ -254,7 +259,7 @@
             class:bg-slate-200={activeFilter !== f.id}
             class:dark:bg-slate-700={activeFilter !== f.id}
           >
-            {counts(f.id)}
+            {tabCounts[f.id] ?? 0}
           </span>
         </button>
       {/each}
@@ -299,7 +304,7 @@
         </ul>
       {/if}
 
-    {:else if shown.length === 0}
+    {:else if shown.length === 0 && (activeFilter !== 'done' || donePins.length === 0)}
       <div class="card p-8 text-center text-sm text-slate-500">
         {#if activeFilter === 'done'}
           No completed entries yet.
@@ -375,6 +380,34 @@
           </li>
         {/each}
       </ul>
+
+      {#if activeFilter === 'done' && donePins.length > 0}
+        <h2 class="mt-4 mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Done pins</h2>
+        <ul class="card divide-y divide-slate-200 overflow-hidden dark:divide-slate-700">
+          {#each donePins as pin (pin.id)}
+            <li class="flex items-start gap-3 bg-white p-3 dark:bg-slate-800">
+              <div class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-pasture-600">
+                <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 text-white"><path fill="currentColor" d="m9 16.2-3.5-3.6L4 14l5 5 11-11-1.4-1.4z" /></svg>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2">
+                  <svg class="mb-0.5 h-3 w-3 shrink-0 text-pasture-500" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7zm0 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/>
+                  </svg>
+                  <p class="font-medium line-through text-slate-400">{pin.title ?? '(untitled pin)'}</p>
+                </div>
+                {#if pin.notes}
+                  <p class="mt-1 whitespace-pre-wrap text-sm text-slate-500">{pin.notes}</p>
+                {/if}
+                {#if pin.category}
+                  <p class="mt-0.5 text-xs text-slate-400">{pin.category}</p>
+                {/if}
+                <a class="mt-0.5 block text-xs text-pasture-600 hover:underline" href="/?pin={pin.id}">View on map</a>
+              </div>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     {/if}
   </main>
 </div>

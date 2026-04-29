@@ -205,6 +205,16 @@ export async function listOpenByLocation(locationId: string): Promise<TaskRecord
   return rows.map(rowToRecord);
 }
 
+export async function listAllByLocation(locationId: string): Promise<TaskRecord[]> {
+  const { rows } = await query<TaskRow>(
+    `SELECT ${COLS} FROM tasks
+       WHERE location_id = $1
+       ORDER BY done_at IS NOT NULL, due_at ASC NULLS LAST, created_at ASC`,
+    [locationId]
+  );
+  return rows.map(rowToRecord);
+}
+
 /** For the iCal feed: all open tasks + tasks completed in the last 30 days. */
 export async function listForFeed(): Promise<TaskRecord[]> {
   const { rows } = await query<TaskRow>(
