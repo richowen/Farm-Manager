@@ -4,6 +4,31 @@ All notable changes are listed here. Follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-04
+
+### Added
+
+- **To-do pins on the Tasks page.** The Tasks → Upcoming tab now loads all
+  pins with `status = 'todo'` alongside scheduled reminders. Each pin row
+  shows a pin icon (amber), the label, notes, and category. Tapping the
+  circle button marks the pin done via `PATCH /api/pins/:id` and removes
+  it from the list immediately.
+
+### Fixed
+
+- **`POST /api/tasks` 400 on worming-schedule creation.** The `due_at`
+  value was being sliced to a date-only string (`"2026-06-10"`) which fails
+  Zod's `z.string().datetime()` validator. It is now passed as a full ISO
+  8601 datetime (`"2026-06-10T00:00:00.000Z"`).
+- **"Hide / Show completed pins" button label inverted.** When completed
+  pins were visible the button read "Hide completed pins"; when hidden it
+  read "Show completed pins" — the opposite of what was intended. Corrected.
+- **Field panel and pin detail sheet could overlap on desktop.** Opening a
+  field's detail panel while a pin sheet was open (or vice versa) rendered
+  both panels simultaneously at the same z-index. Mutual-exclusion reactive
+  statements in `MapView.svelte` now close the pin sheet whenever a
+  location is selected and vice versa.
+
 ## [0.4.0] — 2026-04
 
 ### Added

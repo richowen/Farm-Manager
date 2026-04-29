@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
   import { api, ApiError } from '$lib/client/api';
   import { locations, toast, incrementOverlay, decrementOverlay } from '$lib/stores';
-  import type { LocationRecord, Recurrence, TaskRecord } from '$lib/schemas';
+  import type { LocationRecord, Recurrence, TaskRecord, PinRecord } from '$lib/schemas';
   import { formatDate, formatDateTime, formatRelative } from '$lib/utils/format';
 
   type FilterKey = 'due' | 'overdue' | 'upcoming' | 'done';
@@ -17,6 +17,7 @@
   let activeFilter: FilterKey = 'upcoming';
   let allTasks: TaskRecord[] = [];
   let allLocations: LocationRecord[] = [];
+  let todoPins: PinRecord[] = [];
   let loading = false;
 
   let showForm = false;
@@ -49,8 +50,12 @@
   async function reload(): Promise<void> {
     loading = true;
     try {
-      const res = await api.listTasks('all');
-      allTasks = res.items;
+      const [taskRes, pinRes] = await Promise.all([
+        api.listTasks('all'),
+        api.listPins({ status: 'todo' })
+      ]);
+      allTasks = taskRes.items;
+      todoPins = pinRes.items;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         window.location.href = '/login';
@@ -207,7 +212,18 @@
   }
 
   function counts(key: FilterKey): number {
-    return filtered(allTasks, key).length;
+    const taskCount = filtered(allTasks, key).length;
+    return key === 'upcoming' ? taskCount + todoPins.length : taskCount;
+  }
+
+  async function completePinTodo(pin: PinRecord): Promise<void> {
+    try {
+      await api.updatePin(pin.id, { status: 'done' });
+      todoPins = todoPins.filter((p) => p.id !== pin.id);
+      toast('success', 'Marked done.');
+    } catch {
+      toast('error', 'Could not complete.');
+    }
   }
 
   // Hide the mobile tab bar while the task editor is open.
@@ -272,9 +288,9 @@
   </header>
 
   <main class="mx-auto max-w-3xl p-4">
-    {#if loading && shown.length === 0}
+    {#if loading && shown.length === 0 && todoPins.length === 0}
       <p class="text-sm text-slate-500">Loading…</p>
-    {:else if shown.length === 0}
+    {:else if shown.length === 0 && (activeFilter !== 'upcoming' || todoPins.length === 0)}
       <div class="card p-8 text-center text-sm text-slate-500">
         {#if activeFilter === 'done'}
           No completed tasks.
@@ -288,6 +304,31 @@
       </div>
     {:else}
       <ul class="card divide-y divide-slate-200 overflow-hidden dark:divide-slate-700">
+        {#if activeFilter === 'upcoming'}
+          {#each todoPins as pin (pin.id)}
+            <li class="flex items-start gap-3 bg-white p-3 dark:bg-slate-800">
+              <button
+                class="mt-1 h-5 w-5 shrink-0 rounded-full border-2 border-pasture-600"
+                aria-label="Mark done"
+                on:click={() => completePinTodo(pin)}
+              ></button>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2">
+                  <svg class="mb-0.5 h-3 w-3 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/>
+                  </svg>
+                  <p class="font-medium">{pin.label ?? '(untitled pin)'}</p>
+                </div>
+                {#if pin.notes}
+                  <p class="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{pin.notes}</p>
+                {/if}
+                {#if pin.category}
+                  <p class="mt-0.5 text-xs text-slate-400">{pin.category}</p>
+                {/if}
+              </div>
+            </li>
+          {/each}
+        {/if}
         {#each shown as t (t.id)}
           <li
             class="relative overflow-hidden"

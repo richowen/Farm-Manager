@@ -421,6 +421,10 @@
   }
   $: if (!$selectedPin) lastPannedPinId = null;
 
+  // Mutual exclusion: opening a field/location panel closes any open pin sheet, and vice versa.
+  $: if ($selectedLocationId) selectedPinId.set(null);
+  $: if ($selectedPinId) selectedLocationId.set(null);
+
   // Reactive pin re-render: mirror the locations pattern but on the pin store
   // and the two pin-visibility settings.
   $: if (map && L && $pinsLoaded) {

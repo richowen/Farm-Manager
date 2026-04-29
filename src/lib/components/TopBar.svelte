@@ -127,7 +127,7 @@
         class="btn-ghost !px-2 !py-1.5"
         class:!text-pasture-600={showDonePins}
         aria-pressed={showDonePins}
-        title={showDonePins ? 'Hide completed pins' : 'Show completed pins'}
+        title={showDonePins ? 'Show completed pins' : 'Hide completed pins'}
         aria-label="Toggle completed pins"
         on:click={() => dispatch('toggleDonePins')}
       >
@@ -141,7 +141,8 @@
 
     <a href="/tasks" class="btn-ghost hidden !px-2 !py-1.5 sm:flex" title="Tasks" aria-label="Tasks">
       <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M5 12l5 5L20 7" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2-2h2a2 2 0 0 0 2 2" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M9 12h6M9 16h4" stroke-linecap="round" />
       </svg>
     </a>
 

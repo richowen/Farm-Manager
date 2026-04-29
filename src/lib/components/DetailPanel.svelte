@@ -172,7 +172,7 @@
         const product = typeof detail.metadata?.product === 'string' ? detail.metadata.product : null;
         const taskPromises: Promise<unknown>[] = [];
         while (nextDate <= untilDate) {
-          const due_at = nextDate.toISOString().slice(0, 10);
+          const due_at = nextDate.toISOString();
           taskPromises.push(
             api.createTask({
               title: `Worm cattle — ${loc.name}`,
