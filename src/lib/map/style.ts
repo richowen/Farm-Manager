@@ -1,6 +1,11 @@
+/**
+ * Map feature styling helpers.
+ * Uses `import type` for Leaflet so no Leaflet code runs at module load time
+ * (safe for SSR).
+ */
+import type { PathOptions } from 'leaflet';
 import type { LocationRecord } from '$lib/schemas';
 
-/** Colour used when the user hasn't set one. Different defaults per kind. */
 const DEFAULT_FIELD_COLOR = '#60ad6f';
 const DEFAULT_SHED_COLOR = '#f59e0b';
 
@@ -9,7 +14,7 @@ export function colorFor(loc: Pick<LocationRecord, 'kind' | 'color'>): string {
   return loc.kind === 'field' ? DEFAULT_FIELD_COLOR : DEFAULT_SHED_COLOR;
 }
 
-export function fieldStyle(loc: LocationRecord): L.PathOptions {
+export function fieldStyle(loc: LocationRecord): PathOptions {
   const c = colorFor(loc);
   return {
     color: c,
@@ -20,7 +25,7 @@ export function fieldStyle(loc: LocationRecord): L.PathOptions {
   };
 }
 
-export function fieldStyleSelected(loc: LocationRecord): L.PathOptions {
+export function fieldStyleSelected(loc: LocationRecord): PathOptions {
   const c = colorFor(loc);
   return {
     color: '#ffffff',

@@ -15,7 +15,7 @@
   } from '$lib/stores';
   import { geometryToHectares } from '$lib/utils/geometry';
   import { colorFor, fieldStyle, fieldStyleSelected } from '$lib/map/style';
-  import { esriImageryLayer, esriReferenceLayer, osmLayer } from '$lib/map/layers';
+  import { ESRI_IMAGERY, ESRI_REFERENCE, OSM } from '$lib/map/layers';
   import DetailPanel from '$lib/components/DetailPanel.svelte';
   import TopBar from '$lib/components/TopBar.svelte';
   import DrawToolbar from '$lib/components/DrawToolbar.svelte';
@@ -63,9 +63,9 @@
     await import('@geoman-io/leaflet-geoman-free');
     await import('@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css');
 
-    esriBase = esriImageryLayer();
-    esriRef = esriReferenceLayer();
-    osmBase = osmLayer();
+    esriBase = L.tileLayer(ESRI_IMAGERY.url, ESRI_IMAGERY.options);
+    esriRef = L.tileLayer(ESRI_REFERENCE.url, ESRI_REFERENCE.options);
+    osmBase = L.tileLayer(OSM.url, OSM.options);
 
     // Load user settings (default viewport).
     let startCenter: [number, number] = [54.5, -2.5]; // UK centre fallback
