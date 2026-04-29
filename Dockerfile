@@ -15,7 +15,10 @@ WORKDIR /app
 # different Node version (e.g. Node 25 locally vs Node 20 in Docker) doesn't
 # cause a version-mismatch failure. The git tag already pins the source.
 COPY package.json package-lock.json* ./
-RUN npm install --no-audit --no-fund
+RUN npm install --no-audit --no-fund \
+      --fetch-retries=5 \
+      --fetch-retry-mintimeout=5000 \
+      --fetch-retry-maxtimeout=60000
 
 # Copy sources and build
 COPY . .
