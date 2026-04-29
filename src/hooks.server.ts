@@ -10,10 +10,13 @@ let migrated: Promise<void> | null = null;
 function startMigrations() {
   if (!migrated) {
     migrated = ensureMigrated().catch((err) => {
-      logger.error({ err }, 'migration failure');
-      // Reset so the next request retries.
+      logger.error({ err }, 'migration failure — DB may not be ready yet; will retry next request');
+      // Reset so the next request retries rather than staying permanently failed.
       migrated = null;
-      throw err;
+      // Do NOT re-throw: let the request continue. Pages that don't need the
+      // DB (login, static assets) will still work; pages that do will get
+      // their own query-level error. This also makes smoke tests viable
+      // without a live database.
     });
   }
   return migrated;
