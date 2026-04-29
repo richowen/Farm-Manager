@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable icons need content inside a 40% safe zone -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22c55e"/>
+      <stop offset="1" stop-color="#15803d"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#g)"/>
+  <g fill="#fff" stroke="#fff" stroke-linejoin="round" transform="translate(102 102) scale(0.6)">
+    <path d="M96 256 L256 128 L416 256 L416 416 L96 416 Z" fill="#fff" opacity="0.95"/>
+    <path d="M96 256 L256 128 L416 256" fill="none" stroke="#15803d" stroke-width="14"/>
+    <rect x="218" y="288" width="76" height="128" fill="#15803d" stroke="none"/>
+    <circle cx="280" cy="360" r="6" fill="#fff"/>
+  </g>
+</svg>

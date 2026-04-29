@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  /* Touch-friendly form elements by default */
+  button,
+  [role='button'] {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-pasture-500 focus:ring-offset-1 disabled:pointer-events-none disabled:opacity-60;
+  }
+  .btn-primary {
+    @apply btn bg-pasture-600 text-white hover:bg-pasture-700;
+  }
+  .btn-secondary {
+    @apply btn bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600;
+  }
+  .btn-ghost {
+    @apply btn text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700;
+  }
+  .input {
+    @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-pasture-500 focus:outline-none focus:ring-1 focus:ring-pasture-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100;
+  }
+  .label {
+    @apply mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300;
+  }
+  .card {
+    @apply rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800;
+  }
+}
+
+/* Scale Leaflet vertex handles and marker hitboxes for gloved/touch use */
+.leaflet-interactive,
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+  touch-action: manipulation;
+}
+.leaflet-div-icon,
+.leaflet-editing-icon,
+.marker-icon-middle,
+.leaflet-vertex-icon,
+.leaflet-edit-marker-selected,
+.leaflet-pm-marker,
+.leaflet-pm-vertex,
+.leaflet-pm-middle {
+  width: 22px !important;
+  height: 22px !important;
+  margin-left: -11px !important;
+  margin-top: -11px !important;
+  border-width: 3px !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+@media (pointer: coarse) {
+  .leaflet-vertex-icon,
+  .leaflet-pm-marker,
+  .leaflet-pm-vertex,
+  .leaflet-pm-middle,
+  .marker-icon-middle {
+    width: 28px !important;
+    height: 28px !important;
+    margin-left: -14px !important;
+    margin-top: -14px !important;
+  }
+  .leaflet-touch .leaflet-bar a {
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+    font-size: 18px;
+  }
+}

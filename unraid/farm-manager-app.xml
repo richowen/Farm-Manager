@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>farm-manager</Name>
+  <Repository>ghcr.io/YOURUSERNAME/farm-manager:latest</Repository>
+  <Registry>https://ghcr.io/</Registry>
+  <Network>farm-manager</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support></Support>
+  <Project>https://github.com/YOURUSERNAME/farm-manager</Project>
+  <Overview>Farm Manager — self-hosted PWA for drawing farm fields and sheds on a satellite map and logging timestamped management events (fertilizer, cattle in/out, silage, etc.).&#xD;&#xD;Requires the farm-manager-db container to be running first, and both containers must be on the same custom Docker network.&#xD;&#xD;Before adding either container run this once in the Unraid terminal:&#xD;  docker network create farm-manager</Overview>
+  <Category>Productivity:</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <TemplateURL></TemplateURL>
+  <Icon>https://raw.githubusercontent.com/YOURUSERNAME/farm-manager/main/static/icon.svg</Icon>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+
+  <!-- Port -->
+  <Config
+    Name="Web UI port"
+    Target="3000"
+    Default="3000"
+    Mode="tcp"
+    Description="Port the app listens on. Change the left-hand side if 3000 is already in use on your Unraid host."
+    Type="Port"
+    Display="always"
+    Required="true"
+    Mask="false">3000</Config>
+
+  <!-- Environment variables -->
+  <Config
+    Name="DATABASE_URL"
+    Target="DATABASE_URL"
+    Default="postgres://farm:CHANGEME@farm-manager-db:5432/farm"
+    Mode=""
+    Description="PostgreSQL connection string. Replace CHANGEME with the same password you set in POSTGRES_PASSWORD on the farm-manager-db container. The hostname 'farm-manager-db' is the name of the database container — leave it as-is unless you renamed that container."
+    Type="Variable"
+    Display="always"
+    Required="true"
+    Mask="false">postgres://farm:CHANGEME@farm-manager-db:5432/farm</Config>
+
+  <Config
+    Name="APP_PASSWORD"
+    Target="APP_PASSWORD"
+    Default=""
+    Mode=""
+    Description="The password you will use to log in to the app. Pick something you'll remember."
+    Type="Variable"
+    Display="always"
+    Required="true"
+    Mask="true"></Config>
+
+  <Config
+    Name="SESSION_SECRET"
+    Target="SESSION_SECRET"
+    Default=""
+    Mode=""
+    Description="Random secret used to sign login cookies. Must be at least 32 characters. Generate one in the Unraid terminal with: openssl rand -hex 32"
+    Type="Variable"
+    Display="always"
+    Required="true"
+    Mask="true"></Config>
+
+  <Config
+    Name="ORIGIN"
+    Target="ORIGIN"
+    Default=""
+    Mode=""
+    Description="(Optional but recommended) The public URL of your app, e.g. https://farm.yourdomain.com — required for secure (HTTPS) cookies when accessed via a reverse proxy such as SWAG, Nginx Proxy Manager, or Cloudflare Tunnel. Leave blank for plain HTTP local access."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false"></Config>
+
+  <Config
+    Name="PUBLIC_APP_NAME"
+    Target="PUBLIC_APP_NAME"
+    Default="Farm Manager"
+    Mode=""
+    Description="(Optional) Display name shown in the app header and browser tab."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">Farm Manager</Config>
+</Container>

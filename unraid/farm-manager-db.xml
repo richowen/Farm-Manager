@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>farm-manager-db</Name>
+  <Repository>postgis/postgis:16-3.4</Repository>
+  <Registry>https://hub.docker.com/r/postgis/postgis/</Registry>
+  <Network>farm-manager</Network>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support></Support>
+  <Project>https://github.com/postgis/docker-postgis</Project>
+  <Overview>PostgreSQL 16 with PostGIS 3.4 — the database backend for Farm Manager.&#xD;&#xD;IMPORTANT: Add this container FIRST, before farm-manager-app.&#xD;Create the custom Docker network before starting either container:&#xD;  Open Unraid terminal and run:  docker network create farm-manager</Overview>
+  <Category>Productivity:</Category>
+  <WebUI></WebUI>
+  <Icon>https://raw.githubusercontent.com/docker-library/docs/master/postgres/logo.png</Icon>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+
+  <!-- Data directory — persists your database across container updates -->
+  <Config
+    Name="Database storage"
+    Target="/var/lib/postgresql/data"
+    Default="/mnt/user/appdata/farm-manager/db"
+    Mode="rw"
+    Description="Where Postgres stores the database files. Keep this on your array (ideally on a cache drive for performance)."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/farm-manager/db</Config>
+
+  <!-- Environment variables -->
+  <Config
+    Name="POSTGRES_USER"
+    Target="POSTGRES_USER"
+    Default="farm"
+    Mode=""
+    Description="Postgres superuser name. Leave as 'farm' unless you change DATABASE_URL in the app container too."
+    Type="Variable"
+    Display="always"
+    Required="true"
+    Mask="false">farm</Config>
+
+  <Config
+    Name="POSTGRES_DB"
+    Target="POSTGRES_DB"
+    Default="farm"
+    Mode=""
+    Description="Database name. Leave as 'farm'."
+    Type="Variable"
+    Display="always"
+    Required="true"
+    Mask="false">farm</Config>
+
+  <Config
+    Name="POSTGRES_PASSWORD"
+    Target="POSTGRES_PASSWORD"
+    Default=""
+    Mode=""
+    Description="Database password. Choose something strong — this is used by the app via DATABASE_URL."
+    Type="Variable"
+    Display="always"
+    Required="true"
+    Mask="true"></Config>
+</Container>

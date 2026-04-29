@@ -1,0 +1,132 @@
+Unraid built-in Docker Manager — setup guide
+=============================================
+
+Prerequisites
+-------------
+You need the two XML template files in this folder:
+  - farm-manager-db.xml   (PostGIS database)
+  - farm-manager-app.xml  (the Farm Manager web app)
+
+The containers must be on a shared custom network so the app
+can reach the database by name. Do this ONCE before adding
+either container.
+
+
+Step 1 — Create the shared Docker network
+------------------------------------------
+Open the Unraid web UI → Tools → Terminal, then paste:
+
+    docker network create farm-manager
+
+You only ever need to run this once. The network persists across
+reboots.
+
+
+Step 2 — Create the database storage folder
+--------------------------------------------
+Still in the terminal:
+
+    mkdir -p /mnt/user/appdata/farm-manager/db
+
+Tip: if your server has a cache drive, put appdata there for
+better database performance.
+
+
+Step 3 — Generate a session secret
+------------------------------------
+You need a random 32-byte hex string for SESSION_SECRET.
+Generate one in the terminal:
+
+    openssl rand -hex 32
+
+Copy the output — you'll paste it into the app's template
+in Step 5.
+
+
+Step 4 — Add the database container
+--------------------------------------
+a. In the Unraid Docker tab, click "Add Container".
+b. Scroll to the bottom and click "Load template from a file".
+   Select  /mnt/user/appdata/farm-manager/farm-manager-db.xml
+   (copy the XML file there first, or paste the contents of the
+   XML directly into the template fields manually).
+
+   Alternatively, fill in the fields by hand:
+     Repository:      postgis/postgis:16-3.4
+     Name:            farm-manager-db
+     Network:         farm-manager   (type it in the Network box)
+     Restart:         Unless stopped
+     Path /var/lib/postgresql/data  →  /mnt/user/appdata/farm-manager/db
+
+     Variables:
+       POSTGRES_USER      farm
+       POSTGRES_DB        farm
+       POSTGRES_PASSWORD  <choose a strong password>
+
+c. Click Apply. Wait for the container to turn green/running.
+
+
+Step 5 — Add the app container
+---------------------------------
+a. Click "Add Container" again.
+b. Load or manually fill from farm-manager-app.xml:
+     Repository:   ghcr.io/YOURUSERNAME/farm-manager:latest
+                   (replace YOURUSERNAME with your GitHub account)
+     Name:         farm-manager
+     Network:      farm-manager
+     Restart:      Unless stopped
+     Port:         3000 (host) → 3000 (container)
+
+     Variables:
+       DATABASE_URL   postgres://farm:<DB_PASSWORD>@farm-manager-db:5432/farm
+                      (replace <DB_PASSWORD> with what you set in Step 4)
+       APP_PASSWORD   <the password you want to log in with>
+       SESSION_SECRET <the hex string from Step 3>
+       ORIGIN         (optional) https://farm.yourdomain.com
+       PUBLIC_APP_NAME Farm Manager  (or whatever you like)
+
+c. Click Apply.
+
+
+Step 6 — Open the app
+-----------------------
+Browse to  http://<unraid-ip>:3000
+
+The first boot runs the database migrations automatically
+(including enabling PostGIS). This takes a few seconds;
+if it fails, check the container log — the most common cause
+is the database not yet being ready. Stop and start the
+farm-manager container once to retry.
+
+Log in with the APP_PASSWORD you set above.
+
+
+Updating
+--------
+1. Stop the farm-manager container.
+2. In the Docker tab, click the container → Edit → click
+   "Check for Updates" or manually change the tag.
+3. Apply. The app will re-run migrations on startup — nothing
+   extra needed.
+
+Backups
+-------
+- Full app backup: Settings page → "Download full backup (.json)".
+  This includes all locations, events, and settings in one file.
+  Restore via the same page.
+
+- Raw database dump (from Unraid terminal):
+    docker exec farm-manager-db pg_dump -U farm farm > \
+      /mnt/user/appdata/farm-manager/backup-$(date +%F).sql
+
+- Appdata snapshot: the entire /mnt/user/appdata/farm-manager/db/
+  folder is the Postgres data directory. Unraid's built-in
+  Appdata Backup plugin can back this up automatically.
+
+
+Reverse proxy (optional)
+-------------------------
+If you expose Farm Manager externally via SWAG, Nginx Proxy
+Manager, or Cloudflare Tunnel, set the ORIGIN variable to
+your public HTTPS URL so session cookies are sent as Secure.
+SameSite=Lax is always set regardless.

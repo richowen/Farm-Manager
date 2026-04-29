@@ -1,0 +1,18 @@
+node_modules
+.svelte-kit
+build
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# test artifacts
+coverage/
+playwright-report/
+test-results/

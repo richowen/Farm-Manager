@@ -1,0 +1,48 @@
+# Unraid-flavoured compose file.
+#
+# Differences from docker-compose.yml:
+#   - pulls a pre-built image from GHCR (no local build needed)
+#   - uses bind mounts under /mnt/user/appdata/farm-manager so backups and
+#     updates play nicely with Unraid's appdata conventions.
+#
+# Usage:
+#   1. Copy .env.example to /mnt/user/appdata/farm-manager/.env and fill in.
+#   2. mkdir -p /mnt/user/appdata/farm-manager/db
+#   3. Install the Compose Manager plugin from Community Apps and point it at
+#      this file (or `docker compose --env-file .env -f docker-compose.unraid-example.yml up -d`).
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: farm-manager-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: farm
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: farm
+    volumes:
+      - /mnt/user/appdata/farm-manager/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U farm -d farm']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    # Replace <you> with your GitHub org/user after you first publish a release.
+    image: ghcr.io/<you>/farm-manager:latest
+    container_name: farm-manager
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://farm:${DB_PASSWORD}@db:5432/farm
+      APP_PASSWORD: ${APP_PASSWORD:?set APP_PASSWORD in .env}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      ORIGIN: ${ORIGIN:-}
+      PUBLIC_APP_NAME: ${PUBLIC_APP_NAME:-Farm Manager}
+      NODE_ENV: production
+    ports:
+      # Change the left-hand side if 3000 is already taken on your Unraid host.
+      - '3000:3000'
