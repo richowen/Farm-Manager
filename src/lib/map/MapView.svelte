@@ -311,18 +311,24 @@
       layer.on('click', () => onFeatureClick(loc));
     }
 
-    if (labelsVisible && (loc.kind === 'field' || loc.kind === 'line')) {
+    const showFieldLbl = labelsVisible && loc.kind === 'field' && ($settings?.showFieldLabels ?? true);
+    const showLineLbl = labelsVisible && loc.kind === 'line' && ($settings?.showLineLabels ?? true);
+    const showShedLbl = labelsVisible && loc.kind === 'shed' && ($settings?.showShedLabels ?? true);
+    if (showFieldLbl || showLineLbl) {
       (layer as L.GeoJSON).bindTooltip(loc.name, {
         permanent: true,
         direction: 'center',
-        className: 'field-label'
+        className: 'field-label',
+        opacity: 1
       });
-    } else if (labelsVisible && loc.kind === 'shed') {
+    }
+    if (showShedLbl) {
       (layer as L.Marker).bindTooltip(loc.name, {
         permanent: true,
         direction: 'bottom',
         offset: [0, 4],
-        className: 'shed-label'
+        className: 'shed-label',
+        opacity: 1
       });
     }
 
@@ -497,6 +503,23 @@
         layer.setStyle(styleFor(loc));
       }
     }
+  }
+
+  // Apply label CSS custom properties when settings change.
+  $: if (map && $settings) {
+    const s = $settings;
+    mapEl.style.setProperty('--fm-label-color', s.labelColor);
+    mapEl.style.setProperty('--fm-label-stroke', s.labelStrokeColor);
+    mapEl.style.setProperty('--fm-label-font-size', `${s.labelFontSize}px`);
+  }
+
+  // Re-render all locations when per-kind label visibility toggles change
+  // so tooltips are added/removed without requiring a full page reload.
+  $: if (map && $settings) {
+    void $settings.showFieldLabels;
+    void $settings.showLineLabels;
+    void $settings.showShedLabels;
+    renderAllLocations();
   }
 
   function fitToAll(): void {
@@ -1330,19 +1353,18 @@
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
-    color: #fff;
+    color: var(--fm-label-color, #fff);
     font-weight: 700;
-    font-size: 12px;
-    /* Crisp 1 px stroke in all 8 directions — no blur, no halo */
+    font-size: var(--fm-label-font-size, 12px);
     text-shadow:
-      -1px -1px 0 rgba(0, 0, 0, 0.9),
-       0   -1px 0 rgba(0, 0, 0, 0.9),
-       1px -1px 0 rgba(0, 0, 0, 0.9),
-      -1px  0   0 rgba(0, 0, 0, 0.9),
-       1px  0   0 rgba(0, 0, 0, 0.9),
-      -1px  1px 0 rgba(0, 0, 0, 0.9),
-       0    1px 0 rgba(0, 0, 0, 0.9),
-       1px  1px 0 rgba(0, 0, 0, 0.9);
+      -1px -1px 0 var(--fm-label-stroke, rgba(0,0,0,0.9)),
+       0   -1px 0 var(--fm-label-stroke, rgba(0,0,0,0.9)),
+       1px -1px 0 var(--fm-label-stroke, rgba(0,0,0,0.9)),
+      -1px  0   0 var(--fm-label-stroke, rgba(0,0,0,0.9)),
+       1px  0   0 var(--fm-label-stroke, rgba(0,0,0,0.9)),
+      -1px  1px 0 var(--fm-label-stroke, rgba(0,0,0,0.9)),
+       0    1px 0 var(--fm-label-stroke, rgba(0,0,0,0.9)),
+       1px  1px 0 var(--fm-label-stroke, rgba(0,0,0,0.9));
   }
   :global(.field-label::before) {
     display: none;

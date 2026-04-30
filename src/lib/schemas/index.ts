@@ -464,7 +464,26 @@ export const userSettingsSchema = z.object({
    *  discoverable after a fresh install. */
   showPins: z.boolean().default(true),
   /** Whether completed pins should render on the map when `showPins` is on. */
-  showDonePins: z.boolean().default(true)
+  showDonePins: z.boolean().default(true),
+  // ---- Label customization ---------------------------------------------------
+  /** Map label font size in px (10–24). */
+  labelFontSize: z.number().int().min(10).max(24).default(12),
+  /** Map label text colour (hex). */
+  labelColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default('#ffffff'),
+  /** Map label stroke/outline colour (hex). */
+  labelStrokeColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default('#000000'),
+  /** Whether labels are shown on fields / polygons. */
+  showFieldLabels: z.boolean().default(true),
+  /** Whether labels are shown on lines (pipes / drains). */
+  showLineLabels: z.boolean().default(true),
+  /** Whether labels are shown on shed markers. */
+  showShedLabels: z.boolean().default(true)
 });
 
 export type UserSettings = z.infer<typeof userSettingsSchema>;

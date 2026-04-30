@@ -315,6 +315,12 @@
       pinCategoryColors: ev.detail.colors
     };
   }
+
+  // ---- Label preview helpers ----------------------------------------------
+  $: labelPreviewPx = settings ? Math.round(settings.labelFontSize * 0.8) : 10;
+  $: labelPreviewShadow = settings
+    ? `text-shadow: -1px -1px 0 ${settings.labelStrokeColor}, 0 -1px 0 ${settings.labelStrokeColor}, 1px -1px 0 ${settings.labelStrokeColor}, -1px 0 0 ${settings.labelStrokeColor}, 1px 0 0 ${settings.labelStrokeColor}, -1px 1px 0 ${settings.labelStrokeColor}, 0 1px 0 ${settings.labelStrokeColor}, 1px 1px 0 ${settings.labelStrokeColor};`
+    : '';
 </script>
 
 <svelte:head>
@@ -385,6 +391,90 @@
           <div class="pt-2">
             <button class="btn-primary" on:click={saveSettings}>Save preferences</button>
           </div>
+        </div>
+      {:else}
+        <p class="text-sm text-slate-500">Loading…</p>
+      {/if}
+    </section>
+
+    <!-- Labels & text -->
+    <section class="card p-4">
+      <h2 class="mb-3 text-base font-semibold">Labels &amp; text</h2>
+      {#if settings}
+        <div class="space-y-4">
+          <p class="text-xs text-slate-500">
+            Customise the appearance of field, shed and pipe labels on the map.
+          </p>
+          <div>
+            <span class="label">Label font size — {settings.labelFontSize}px</span>
+            <input
+              type="range"
+              min="10"
+              max="24"
+              step="1"
+              class="mt-1 w-full accent-pasture-600 dark:accent-pasture-400"
+              bind:value={settings.labelFontSize}
+            />
+            <div class="mt-0.5 flex justify-between text-[11px] text-slate-400">
+              <span>10 px</span>
+              <span>24 px</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <span class="label">Text colour</span>
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  class="h-9 w-10 shrink-0 cursor-pointer rounded border border-slate-300 dark:border-slate-600"
+                  bind:value={settings.labelColor}
+                  aria-label="Label text colour"
+                />
+                <span class="text-xs font-mono uppercase text-slate-500">{settings.labelColor}</span>
+              </div>
+            </div>
+            <div>
+              <span class="label">Outline colour</span>
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  class="h-9 w-10 shrink-0 cursor-pointer rounded border border-slate-300 dark:border-slate-600"
+                  bind:value={settings.labelStrokeColor}
+                  aria-label="Label outline colour"
+                />
+                <span class="text-xs font-mono uppercase text-slate-500">{settings.labelStrokeColor}</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <span class="label">Show labels</span>
+            <div class="mt-1 space-y-2">
+              <label class="flex cursor-pointer items-center gap-3 text-sm">
+                <input type="checkbox" bind:checked={settings.showFieldLabels} class="h-4 w-4 rounded border-slate-300 accent-pasture-600" />
+                Fields &amp; polygons
+              </label>
+              <label class="flex cursor-pointer items-center gap-3 text-sm">
+                <input type="checkbox" bind:checked={settings.showLineLabels} class="h-4 w-4 rounded border-slate-300 accent-pasture-600" />
+                Pipes &amp; drains
+              </label>
+              <label class="flex cursor-pointer items-center gap-3 text-sm">
+                <input type="checkbox" bind:checked={settings.showShedLabels} class="h-4 w-4 rounded border-slate-300 accent-pasture-600" />
+                Sheds
+              </label>
+            </div>
+          </div>
+          <div>
+            <span class="label">Preview</span>
+            <div class="mt-1 flex h-28 items-center justify-center overflow-hidden rounded-lg bg-slate-200 dark:bg-slate-700">
+              <span
+                class="select-none text-center font-semibold leading-tight"
+                style="font-size: {labelPreviewPx}px; color: {settings.labelColor}; {labelPreviewShadow}"
+              >
+                Field Name
+              </span>
+            </div>
+          </div>
+          <button class="btn-primary" on:click={saveSettings}>Save label settings</button>
         </div>
       {:else}
         <p class="text-sm text-slate-500">Loading…</p>
