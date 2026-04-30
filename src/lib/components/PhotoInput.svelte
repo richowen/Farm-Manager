@@ -4,6 +4,7 @@
   import { toast } from '$lib/stores';
   import { resizeImage } from '$lib/utils/resizeImage.js';
   import type { PhotoRef } from '$lib/schemas';
+  import PhotoLightbox from './PhotoLightbox.svelte';
 
   export let value: PhotoRef[] = [];
 
@@ -53,9 +54,6 @@
   function openLightbox(p: PhotoRef): void {
     lightboxSrc = `/uploads/${p.path}`;
   }
-  function closeLightbox(): void {
-    lightboxSrc = null;
-  }
 </script>
 
 <div class="space-y-2">
@@ -97,15 +95,4 @@
   </label>
 </div>
 
-{#if lightboxSrc}
-  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-noninteractive-element-interactions -->
-  <div
-    class="fixed inset-0 z-[3000] flex items-center justify-center bg-black/80 p-4"
-    role="dialog"
-    aria-modal="true"
-    on:click={closeLightbox}
-    on:keydown={(e) => e.key === 'Escape' && closeLightbox()}
-  >
-    <img src={lightboxSrc} alt="Full size" class="max-h-full max-w-full rounded-md shadow-2xl" />
-  </div>
-{/if}
+<PhotoLightbox src={lightboxSrc} on:close={() => (lightboxSrc = null)} />

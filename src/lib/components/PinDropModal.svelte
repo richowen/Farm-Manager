@@ -1,10 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import {
-    incrementOverlay,
-    decrementOverlay,
     settings
   } from '$lib/stores';
+  import { openOverlay } from '$lib/utils/overlay';
   import {
     DEFAULT_PIN_CATEGORIES,
     DEFAULT_PIN_CATEGORY_COLORS,
@@ -24,8 +23,9 @@
   export let saving = false;
   export let deleting = false;
 
-  onMount(() => incrementOverlay());
-  onDestroy(() => decrementOverlay());
+  let disposeOverlay: (() => void) | null = null;
+  onMount(() => { disposeOverlay = openOverlay(() => dispatch('cancel')); });
+  onDestroy(() => { disposeOverlay?.(); disposeOverlay = null; });
 
   let title: string = initial.title ?? '';
   let notes: string = initial.notes ?? '';

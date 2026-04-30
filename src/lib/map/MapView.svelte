@@ -1326,14 +1326,23 @@
 
 <style>
   :global(.field-label) {
-    background: transparent;
-    border: none;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
     color: #fff;
-    font-weight: 600;
+    font-weight: 700;
+    font-size: 12px;
+    /* Crisp 1 px stroke in all 8 directions — no blur, no halo */
     text-shadow:
-      0 0 3px rgba(0, 0, 0, 0.95),
-      0 0 2px rgba(0, 0, 0, 0.9);
-    box-shadow: none;
+      -1px -1px 0 rgba(0, 0, 0, 0.9),
+       0   -1px 0 rgba(0, 0, 0, 0.9),
+       1px -1px 0 rgba(0, 0, 0, 0.9),
+      -1px  0   0 rgba(0, 0, 0, 0.9),
+       1px  0   0 rgba(0, 0, 0, 0.9),
+      -1px  1px 0 rgba(0, 0, 0, 0.9),
+       0    1px 0 rgba(0, 0, 0, 0.9),
+       1px  1px 0 rgba(0, 0, 0, 0.9);
   }
   :global(.field-label::before) {
     display: none;

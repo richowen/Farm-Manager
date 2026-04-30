@@ -1,14 +1,16 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { api } from '$lib/client/api';
-  import { locations, toast, incrementOverlay, decrementOverlay } from '$lib/stores';
+  import { locations, toast } from '$lib/stores';
+  import { openOverlay } from '$lib/utils/overlay';
   import EventForm from './EventForm.svelte';
   import type { PhotoRef } from '$lib/schemas';
 
   export let ids: string[];
 
-  onMount(() => incrementOverlay());
-  onDestroy(() => decrementOverlay());
+  let disposeOverlay: (() => void) | null = null;
+  onMount(() => { disposeOverlay = openOverlay(() => dispatch('cancel')); });
+  onDestroy(() => { disposeOverlay?.(); disposeOverlay = null; });
 
   const dispatch = createEventDispatcher<{
     saved: { batchId: string; count: number };

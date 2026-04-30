@@ -1,7 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { formatHa, formatAc, formatLength } from '$lib/utils/format';
-  import { locations, incrementOverlay, decrementOverlay } from '$lib/stores';
+  import { locations } from '$lib/stores';
+  import { openOverlay } from '$lib/utils/overlay';
   import TagInput from './TagInput.svelte';
 
   export let kind: 'field' | 'shed' | 'line';
@@ -11,8 +12,9 @@
    *  colour, palette, and label. */
   export let lineType: 'pipe' | 'drain' | null = null;
 
-  onMount(() => incrementOverlay());
-  onDestroy(() => decrementOverlay());
+  let disposeOverlay: (() => void) | null = null;
+  onMount(() => { disposeOverlay = openOverlay(() => dispatch('cancel')); });
+  onDestroy(() => { disposeOverlay?.(); disposeOverlay = null; });
 
   const PALETTE_FIELD = ['#60ad6f', '#22c55e', '#16a34a', '#eab308', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280'];
   const PALETTE_SHED = ['#f59e0b', '#d97706', '#b45309', '#78350f', '#6b7280', '#374151', '#3b82f6', '#10b981', '#ec4899', '#ef4444'];

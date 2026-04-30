@@ -345,10 +345,10 @@
           <div>
             <span class="label">Primary unit</span>
             <div class="flex gap-2">
-              <label class="flex items-center gap-2 text-sm">
+              <label class="flex cursor-pointer items-center gap-2 text-sm">
                 <input type="radio" bind:group={settings.unitsPrimary} value="ha" /> Hectares (ha)
               </label>
-              <label class="flex items-center gap-2 text-sm">
+              <label class="flex cursor-pointer items-center gap-2 text-sm">
                 <input type="radio" bind:group={settings.unitsPrimary} value="ac" /> Acres (ac)
               </label>
             </div>
@@ -356,10 +356,10 @@
           <div>
             <span class="label">Default base layer</span>
             <div class="flex gap-2">
-              <label class="flex items-center gap-2 text-sm">
+              <label class="flex cursor-pointer items-center gap-2 text-sm">
                 <input type="radio" bind:group={settings.baseLayer} value="esri" /> Satellite (Esri)
               </label>
-              <label class="flex items-center gap-2 text-sm">
+              <label class="flex cursor-pointer items-center gap-2 text-sm">
                 <input type="radio" bind:group={settings.baseLayer} value="osm" /> OpenStreetMap
               </label>
             </div>
@@ -549,10 +549,10 @@
         <div>
           <span class="label">Restore a backup</span>
           <div class="mb-2 flex gap-2 text-sm">
-            <label class="flex items-center gap-2">
+            <label class="flex cursor-pointer items-center gap-2">
               <input type="radio" bind:group={importMode} value="append" /> Append
             </label>
-            <label class="flex items-center gap-2">
+            <label class="flex cursor-pointer items-center gap-2">
               <input type="radio" bind:group={importMode} value="replace" /> Replace all
             </label>
           </div>

@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import EventIcon from './EventIcon.svelte';
   import EventForm from './EventForm.svelte';
+  import PhotoLightbox from './PhotoLightbox.svelte';
   import { EVENT_META } from '$lib/utils/event-types';
   import type { EventRecord, UpdateEventInput } from '$lib/schemas';
   import { formatDateTime, formatRelative } from '$lib/utils/format';
@@ -11,6 +12,7 @@
   export let event: EventRecord;
 
   let editing = false;
+  let lightboxSrc: string | null = null;
 
   const dispatch = createEventDispatcher<{
     updated: EventRecord;
@@ -93,25 +95,25 @@
         {#if event.photos && event.photos.length > 0}
           <div class="mt-2 flex flex-wrap gap-1.5">
             {#each event.photos as p}
-              <a
-                href={`/uploads/${p.path}`}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
                 class="block h-14 w-14 overflow-hidden rounded-md ring-1 ring-slate-200 dark:ring-slate-600"
+                aria-label="View photo"
+                on:click={() => (lightboxSrc = `/uploads/${p.path}`)}
               >
                 <img src={`/uploads/${p.path}`} alt="" class="h-full w-full object-cover" loading="lazy" />
-              </a>
+              </button>
             {/each}
           </div>
         {/if}
-        <div class="mt-1 flex gap-3 text-xs">
+        <div class="mt-1 flex gap-2 text-xs">
           <button
-            class="text-slate-500 hover:text-pasture-600"
+            class="rounded px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 hover:text-pasture-600 dark:hover:bg-slate-700"
             on:click={() => (editing = true)}
           >
             Edit
           </button>
-          <button class="text-slate-500 hover:text-red-600" on:click={deleteEvent}>Delete</button>
+          <button class="rounded px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 hover:text-red-600 dark:hover:bg-slate-700" on:click={deleteEvent}>Delete</button>
         </div>
       </div>
     </div>
@@ -126,3 +128,5 @@
     </div>
   {/if}
 </li>
+
+<PhotoLightbox src={lightboxSrc} on:close={() => (lightboxSrc = null)} />

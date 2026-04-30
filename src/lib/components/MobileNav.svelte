@@ -50,14 +50,20 @@
     {@const active = item.match(pathname)}
     <a
       href={item.href}
-      class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium"
+      class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium"
       class:text-pasture-600={active}
       class:text-slate-500={!active}
       aria-current={active ? 'page' : undefined}
     >
-      <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d={item.icon} stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
+      <span
+        class="flex h-8 w-14 items-center justify-center rounded-full transition-colors {active
+          ? 'bg-pasture-50 dark:bg-pasture-900/30'
+          : ''}"
+      >
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width={active ? 2.5 : 2}>
+          <path d={item.icon} stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </span>
       {item.label}
     </a>
   {/each}

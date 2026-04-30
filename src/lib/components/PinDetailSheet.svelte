@@ -6,10 +6,9 @@
     upsertPin,
     removePin,
     locations,
-    toast,
-    incrementOverlay,
-    decrementOverlay
+    toast
   } from '$lib/stores';
+  import { openOverlay } from '$lib/utils/overlay';
   import { api, ApiError } from '$lib/client/api';
   import {
     DEFAULT_PIN_CATEGORY_COLORS,
@@ -19,6 +18,7 @@
   } from '$lib/schemas';
   import { formatDateTime, formatRelative } from '$lib/utils/format';
   import PinDropModal from './PinDropModal.svelte';
+  import PhotoLightbox from './PhotoLightbox.svelte';
   import { settings } from '$lib/stores';
 
   const dispatch = createEventDispatcher<{
@@ -27,26 +27,26 @@
 
   $: pin = $selectedPin;
 
-  // Track the overlay count while the sheet is open so the mobile nav hides.
-  let overlayActive = false;
+  // Register a history entry while the sheet is open so hardware back closes it.
+  let disposeOverlay: (() => void) | null = null;
   $: {
     const shouldBe = pin !== null;
-    if (shouldBe && !overlayActive) {
-      incrementOverlay();
-      overlayActive = true;
-    } else if (!shouldBe && overlayActive) {
-      decrementOverlay();
-      overlayActive = false;
+    if (shouldBe && !disposeOverlay) {
+      disposeOverlay = openOverlay(() => selectedPinId.set(null));
+    } else if (!shouldBe && disposeOverlay) {
+      disposeOverlay();
+      disposeOverlay = null;
     }
   }
   onDestroy(() => {
-    if (overlayActive) {
-      decrementOverlay();
-      overlayActive = false;
+    if (disposeOverlay) {
+      disposeOverlay();
+      disposeOverlay = null;
     }
   });
 
   let editing = false;
+  let lightboxSrc: string | null = null;
   let busy = false;
   let deleting = false;
 
@@ -199,14 +199,14 @@
           {#if pin.photos.length > 0}
             <div class="mt-2 flex flex-wrap gap-1.5">
               {#each pin.photos as p}
-                <a
-                  href={`/uploads/${p.path}`}
-                  target="_blank"
-                  rel="noopener"
+                <button
+                  type="button"
                   class="block h-14 w-14 overflow-hidden rounded ring-1 ring-slate-200 dark:ring-slate-700"
+                  aria-label="View photo"
+                  on:click={() => (lightboxSrc = `/uploads/${p.path}`)}
                 >
                   <img src={`/uploads/${p.path}`} alt="" class="h-full w-full object-cover" loading="lazy" />
-                </a>
+                </button>
               {/each}
             </div>
           {/if}
@@ -300,6 +300,8 @@
     on:delete={() => deletePin()}
   />
 {/if}
+
+<PhotoLightbox src={lightboxSrc} on:close={() => (lightboxSrc = null)} />
 
 <style>
   .pin-sheet::before {

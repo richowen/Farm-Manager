@@ -106,7 +106,7 @@
           <div class="flex flex-wrap gap-1">
             {#each EVENT_TYPES as t}
               <button
-                class="rounded-full border px-2 py-0.5 text-xs"
+                class="shrink-0 rounded-full border px-2 py-0.5 text-xs"
                 class:border-pasture-500={filterTypes.has(t)}
                 class:bg-pasture-50={filterTypes.has(t)}
                 class:text-pasture-800={filterTypes.has(t)}

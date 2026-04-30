@@ -2,7 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { api, ApiError } from '$lib/client/api';
-  import { locations, toast, incrementOverlay, decrementOverlay } from '$lib/stores';
+  import { locations, toast } from '$lib/stores';
+  import { openOverlay } from '$lib/utils/overlay';
   import type { LocationRecord, TaskRecord, PinRecord } from '$lib/schemas';
   import { formatDate, formatDateTime, formatRelative } from '$lib/utils/format';
 
@@ -205,21 +206,20 @@
     }
   }
 
-  // Hide the mobile tab bar while the task editor is open.
-  let formOverlayActive = false;
+  // Register a history entry while the task editor is open so hardware back closes it.
+  let disposeOverlay: (() => void) | null = null;
   $: {
-    if (showForm && !formOverlayActive) {
-      incrementOverlay();
-      formOverlayActive = true;
-    } else if (!showForm && formOverlayActive) {
-      decrementOverlay();
-      formOverlayActive = false;
+    if (showForm && !disposeOverlay) {
+      disposeOverlay = openOverlay(() => { showForm = false; });
+    } else if (!showForm && disposeOverlay) {
+      disposeOverlay();
+      disposeOverlay = null;
     }
   }
   onDestroy(() => {
-    if (formOverlayActive) {
-      decrementOverlay();
-      formOverlayActive = false;
+    if (disposeOverlay) {
+      disposeOverlay();
+      disposeOverlay = null;
     }
   });
 </script>
@@ -239,7 +239,7 @@
       <h1 class="flex-1 text-lg font-semibold">Calendar</h1>
       <button class="btn-primary !py-1.5 !text-xs" on:click={openNew}>+ New</button>
     </div>
-    <nav class="mx-auto flex max-w-3xl gap-1 px-2 pb-2 overflow-x-auto">
+    <nav class="mx-auto flex max-w-3xl gap-1 px-2 pb-2 overflow-x-auto scrollbar-none">
       {#each FILTERS as f}
         <button
           class="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium"
@@ -371,9 +371,9 @@
                 {#if t.notes}
                   <p class="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{t.notes}</p>
                 {/if}
-                <div class="mt-1.5 flex gap-3 text-xs">
-                  <button class="text-slate-500 hover:text-pasture-600" on:click={() => openEdit(t)}>Edit</button>
-                  <button class="text-slate-500 hover:text-red-600" on:click={() => deleteTask(t)}>Delete</button>
+                <div class="mt-1.5 flex gap-2 text-xs">
+                  <button class="rounded px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 hover:text-pasture-600 dark:hover:bg-slate-700" on:click={() => openEdit(t)}>Edit</button>
+                  <button class="rounded px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 hover:text-red-600 dark:hover:bg-slate-700" on:click={() => deleteTask(t)}>Delete</button>
                 </div>
               </div>
             </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onDestroy } from 'svelte';
-  import { selectedLocation, selectedLocationId, upsertLocation, toast, locations, incrementOverlay, decrementOverlay } from '$lib/stores';
+  import { selectedLocation, selectedLocationId, upsertLocation, toast, locations } from '$lib/stores';
+  import { openOverlay } from '$lib/utils/overlay';
   import { api, ApiError } from '$lib/client/api';
   import {
     formatArea,
@@ -119,23 +120,21 @@
   // Show the Use tab only for fields.
   $: TABS = TABS_BASE.filter((t) => t.id !== 'use' || loc?.kind === 'field');
 
-  // Treat the detail panel as a full-screen overlay on mobile — hide the
-  // bottom tab bar while it's open.
-  let overlayIsActive = false;
+  // Register a history entry while the panel is open so hardware back closes it.
+  let disposeOverlay: (() => void) | null = null;
   $: {
     const shouldBeActive = loc !== null;
-    if (shouldBeActive && !overlayIsActive) {
-      incrementOverlay();
-      overlayIsActive = true;
-    } else if (!shouldBeActive && overlayIsActive) {
-      decrementOverlay();
-      overlayIsActive = false;
+    if (shouldBeActive && !disposeOverlay) {
+      disposeOverlay = openOverlay(() => selectedLocationId.set(null));
+    } else if (!shouldBeActive && disposeOverlay) {
+      disposeOverlay();
+      disposeOverlay = null;
     }
   }
   onDestroy(() => {
-    if (overlayIsActive) {
-      decrementOverlay();
-      overlayIsActive = false;
+    if (disposeOverlay) {
+      disposeOverlay();
+      disposeOverlay = null;
     }
   });
 
@@ -438,7 +437,7 @@
       </div>
 
       <!-- Tabs -->
-      <div class="flex gap-1 overflow-x-auto border-b border-slate-200 px-2 pt-2 dark:border-slate-700">
+      <div class="flex gap-1 overflow-x-auto scrollbar-none border-b border-slate-200 px-2 pt-2 dark:border-slate-700">
         {#each TABS as t}
           <button
             class="shrink-0 rounded-t-md px-3 py-2 text-sm font-medium"

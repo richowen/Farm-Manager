@@ -135,7 +135,7 @@
         + New
       </a>
     </div>
-    <nav class="mx-auto flex max-w-3xl gap-1 overflow-x-auto px-2 pb-2">
+    <nav class="mx-auto flex max-w-3xl gap-1 overflow-x-auto scrollbar-none px-2 pb-2">
       {#each STATUS_FILTERS as f}
         <button
           class="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium"

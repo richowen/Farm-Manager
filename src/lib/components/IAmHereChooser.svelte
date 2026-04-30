@@ -1,14 +1,15 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-  import { incrementOverlay, decrementOverlay } from '$lib/stores';
+  import { openOverlay } from '$lib/utils/overlay';
   import type { LocationRecord } from '$lib/schemas';
 
   export let coords: [number, number];
   export let accuracy: number | null = null;
   export let containingField: LocationRecord | null = null;
 
-  onMount(() => incrementOverlay());
-  onDestroy(() => decrementOverlay());
+  let disposeOverlay: (() => void) | null = null;
+  onMount(() => { disposeOverlay = openOverlay(() => dispatch('cancel')); });
+  onDestroy(() => { disposeOverlay?.(); disposeOverlay = null; });
 
   const dispatch = createEventDispatcher<{
     logEvent: void;
