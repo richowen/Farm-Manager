@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1.7
 
 # ---- Build stage ------------------------------------------------------------
-FROM node:20-alpine AS build
+FROM node:20-slim AS build
 
-# argon2 needs a C toolchain to compile its native addon; sharp ships prebuilt
-# binaries for both linux/amd64 musl and linux/arm64 musl so we don't need
-# libvips-dev here.
-RUN apk add --no-cache python3 make g++ libc6-compat
+# Build tools for native addons (argon2, etc.).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -28,12 +28,12 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # ---- Runtime stage ----------------------------------------------------------
-FROM node:20-alpine AS runtime
+FROM node:20-slim AS runtime
 
-# argon2's prebuilt binaries need libc compatibility on alpine.
-# `vips` is the runtime counterpart that sharp's prebuilt binary dlopen()s —
-# including it ensures photo processing works on arm64-musl.
-RUN apk add --no-cache libc6-compat tini curl vips
+# tini for proper PID 1 signal handling.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tini curl \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \
     PORT=3000 \
@@ -43,7 +43,7 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 # Drop to a non-root user
-RUN addgroup -S app && adduser -S -G app app
+RUN groupadd -r app && useradd -r -g app app
 COPY --from=build --chown=app:app /app/build ./build
 COPY --from=build --chown=app:app /app/node_modules ./node_modules
 COPY --from=build --chown=app:app /app/package.json ./package.json
