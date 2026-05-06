@@ -225,9 +225,18 @@
 
       if (detail.wormingSchedule?.until) {
         const { intervalDays, until } = detail.wormingSchedule;
-        const untilDate = new Date(until + 'T23:59:59');
-        let nextDate = new Date(detail.occurred_at);
-        nextDate.setDate(nextDate.getDate() + intervalDays);
+        const untilDate = new Date(Date.UTC(
+          parseInt(until.split('-')[0]),
+          parseInt(until.split('-')[1]) - 1,
+          parseInt(until.split('-')[2]),
+          23, 59, 59
+        ));
+        const occurredDate = new Date(detail.occurred_at);
+        let nextDate = new Date(Date.UTC(
+          occurredDate.getUTCFullYear(),
+          occurredDate.getUTCMonth(),
+          occurredDate.getUTCDate() + intervalDays
+        ));
         const product = typeof detail.metadata?.product === 'string' ? detail.metadata.product : null;
         const taskPromises: Promise<unknown>[] = [];
         while (nextDate <= untilDate) {
@@ -241,8 +250,11 @@
               ...(product ? { notes: `Product: ${product}` } : {})
             })
           );
-          nextDate = new Date(nextDate);
-          nextDate.setDate(nextDate.getDate() + intervalDays);
+          nextDate = new Date(Date.UTC(
+            nextDate.getUTCFullYear(),
+            nextDate.getUTCMonth(),
+            nextDate.getUTCDate() + intervalDays
+          ));
         }
         if (taskPromises.length > 0) {
           try {
