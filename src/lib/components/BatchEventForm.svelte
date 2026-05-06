@@ -30,6 +30,7 @@
     notes: string;
     metadata: Record<string, unknown>;
     photos: PhotoRef[];
+    wormingSchedule: { intervalDays: number; until: string } | null;
   }) {
     if (ids.length === 0) {
       toast('error', 'No locations selected.');
@@ -48,6 +49,51 @@
         }
       });
       dispatch('saved', { batchId: res.batch_id, count: res.items.length });
+
+      if (detail.wormingSchedule?.until) {
+        const { intervalDays, until } = detail.wormingSchedule;
+        const untilDate = new Date(Date.UTC(
+          parseInt(until.split('-')[0]),
+          parseInt(until.split('-')[1]) - 1,
+          parseInt(until.split('-')[2]),
+          23, 59, 59
+        ));
+        const occurredDate = new Date(detail.occurred_at);
+        const product = typeof detail.metadata?.product === 'string' ? detail.metadata.product : null;
+        const taskPromises: Promise<unknown>[] = [];
+        for (const loc of selected) {
+          let nextDate = new Date(Date.UTC(
+            occurredDate.getUTCFullYear(),
+            occurredDate.getUTCMonth(),
+            occurredDate.getUTCDate() + intervalDays
+          ));
+          while (nextDate <= untilDate) {
+            const due_at = nextDate.toISOString();
+            taskPromises.push(
+              api.createTask({
+                title: `Worm cattle — ${loc.name}`,
+                due_at,
+                location_id: loc.id,
+                recurrence: 'none',
+                ...(product ? { notes: `Product: ${product}` } : {})
+              })
+            );
+            nextDate = new Date(Date.UTC(
+              nextDate.getUTCFullYear(),
+              nextDate.getUTCMonth(),
+              nextDate.getUTCDate() + intervalDays
+            ));
+          }
+        }
+        if (taskPromises.length > 0) {
+          try {
+            await Promise.all(taskPromises);
+            toast('success', `${taskPromises.length} worming reminder${taskPromises.length === 1 ? '' : 's'} scheduled.`);
+          } catch {
+            toast('error', 'Could not create worming reminders.');
+          }
+        }
+      }
     } catch (err) {
       console.error(err);
       toast('error', 'Could not save batch event.');
