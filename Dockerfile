@@ -31,9 +31,9 @@ RUN npm prune --omit=dev
 FROM node:20-slim AS runtime
 
 # tini for proper PID 1 signal handling.
-# su-exec for dropping from root to the app user in the entrypoint script.
+# gosu for dropping from root to the app user in the entrypoint script.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    tini su-exec curl \
+    tini gosu curl \
     && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \

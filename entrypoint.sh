@@ -15,4 +15,4 @@ mkdir -p "$(dirname "$UPLOAD_DIR")" "$UPLOAD_DIR"
 chmod -R a+rwX "$UPLOAD_DIR"
 
 # Drop to the non-root app user and exec the real command.
-exec su-exec app "$@"
+exec gosu app "$@"
