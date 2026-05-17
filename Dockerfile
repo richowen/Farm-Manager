@@ -31,8 +31,9 @@ RUN npm prune --omit=dev
 FROM node:20-slim AS runtime
 
 # tini for proper PID 1 signal handling.
+# su-exec for dropping from root to the app user in the entrypoint script.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    tini curl \
+    tini su-exec curl \
     && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \
@@ -49,18 +50,20 @@ COPY --from=build --chown=app:app /app/node_modules ./node_modules
 COPY --from=build --chown=app:app /app/package.json ./package.json
 COPY --from=build --chown=app:app /app/db ./db
 
-# Create the uploads dir owned by the app user. VOLUME so that bind-mounting
-# a host folder at run time just works; otherwise photos land on the layer
-# and disappear on container recreate.
-RUN mkdir -p /data/uploads && chown -R app:app /data
+# Create the uploads dir. The entrypoint script (running as root) ensures
+# correct permissions at startup, handling bind-mounted host directories
+# (e.g. Unraid appdata) that may have restrictive ownership.
+RUN mkdir -p /data/uploads
 VOLUME ["/data/uploads"]
 
-USER app
+# Copy entrypoint — runs as root, fixes permissions, then drops to app user.
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["node", "build/index.js"]
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 \
   CMD curl -fsS http://127.0.0.1:3000/healthz || exit 1
-
-ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["node", "build/index.js"]
