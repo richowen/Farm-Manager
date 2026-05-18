@@ -90,17 +90,30 @@
       {/each}
     </div>
   {/if}
-  <label class="btn-secondary inline-flex cursor-pointer !py-1.5 !text-xs">
-    {uploading > 0 ? `Uploading ${uploading}…` : '+ Add photo / video'}
-    <input
-      type="file"
-      accept="image/*,video/*"
-      multiple
-      class="sr-only"
-      on:change={onFiles}
-      disabled={uploading > 0}
-    />
-  </label>
+  <div class="flex flex-wrap gap-2">
+    <label class="btn-secondary inline-flex cursor-pointer !py-1.5 !text-xs">
+      {uploading > 0 ? `Uploading ${uploading}…` : '📷 Take photo / video'}
+      <input
+        type="file"
+        accept="image/*,video/*"
+        capture="environment"
+        class="sr-only"
+        on:change={onFiles}
+        disabled={uploading > 0}
+      />
+    </label>
+    <label class="btn-secondary inline-flex cursor-pointer !py-1.5 !text-xs">
+      {uploading > 0 ? '…' : '🖼 Choose from gallery'}
+      <input
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        class="sr-only"
+        on:change={onFiles}
+        disabled={uploading > 0}
+      />
+    </label>
+  </div>
 </div>
 
 <PhotoLightbox src={lightboxSrc} on:close={() => (lightboxSrc = null)} />
