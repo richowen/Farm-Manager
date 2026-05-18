@@ -12,6 +12,9 @@
 
   let uploading = 0;
   let lightboxSrc: string | null = null;
+  let photoInput: HTMLInputElement;
+  let videoInput: HTMLInputElement;
+  let galleryInput: HTMLInputElement;
 
   function emit(): void {
     dispatch('change', value);
@@ -90,29 +93,21 @@
       {/each}
     </div>
   {/if}
+  <!-- Hidden inputs: separate capture types for reliable mobile camera behaviour -->
+  <input bind:this={photoInput} type="file" accept="image/*" capture="environment" class="sr-only" on:change={onFiles} disabled={uploading > 0} />
+  <input bind:this={videoInput} type="file" accept="video/*" capture="environment" class="sr-only" on:change={onFiles} disabled={uploading > 0} />
+  <input bind:this={galleryInput} type="file" accept="image/*,video/*" multiple class="sr-only" on:change={onFiles} disabled={uploading > 0} />
+
   <div class="flex flex-wrap gap-2">
-    <label class="btn-secondary inline-flex cursor-pointer !py-1.5 !text-xs">
-      {uploading > 0 ? `Uploading ${uploading}…` : '📷 Take photo / video'}
-      <input
-        type="file"
-        accept="image/*,video/*"
-        capture="environment"
-        class="sr-only"
-        on:change={onFiles}
-        disabled={uploading > 0}
-      />
-    </label>
-    <label class="btn-secondary inline-flex cursor-pointer !py-1.5 !text-xs">
-      {uploading > 0 ? '…' : '🖼 Choose from gallery'}
-      <input
-        type="file"
-        accept="image/*,video/*"
-        multiple
-        class="sr-only"
-        on:change={onFiles}
-        disabled={uploading > 0}
-      />
-    </label>
+    <button type="button" class="btn-secondary !py-1.5 !text-xs" disabled={uploading > 0} on:click={() => photoInput.click()}>
+      📷 Photo
+    </button>
+    <button type="button" class="btn-secondary !py-1.5 !text-xs" disabled={uploading > 0} on:click={() => videoInput.click()}>
+      🎥 Video
+    </button>
+    <button type="button" class="btn-secondary !py-1.5 !text-xs" disabled={uploading > 0} on:click={() => galleryInput.click()}>
+      {uploading > 0 ? `Uploading ${uploading}…` : '🖼 Gallery'}
+    </button>
   </div>
 </div>
 
