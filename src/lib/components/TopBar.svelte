@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { locations } from '$lib/stores';
 
   export let labelsVisible: boolean;
@@ -31,6 +31,25 @@
     searchOpen = false;
     search = '';
   }
+
+  function onKeyDown(e: KeyboardEvent): void {
+    const target = e.target as HTMLElement;
+    const typing =
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      (target as HTMLElement).isContentEditable;
+    if (e.key === '/' && !searchOpen && !typing) {
+      e.preventDefault();
+      searchOpen = true;
+    }
+    if (e.key === 'Escape' && searchOpen) {
+      searchOpen = false;
+      search = '';
+    }
+  }
+
+  onMount(() => document.addEventListener('keydown', onKeyDown));
+  onDestroy(() => document.removeEventListener('keydown', onKeyDown));
 </script>
 
 <div class="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex justify-center p-3">

@@ -11,7 +11,6 @@
     upsertPin
   } from '$lib/stores';
   import { api } from '$lib/client/api';
-  import { onMount } from 'svelte';
 
   // If the URL includes ?location=<id>, select it once locations load.
   let pending: string | null = $page.url.searchParams.get('location');
@@ -51,9 +50,6 @@
     }
   }
 
-  onMount(() => {
-    // no-op
-  });
 </script>
 
 <MapView />

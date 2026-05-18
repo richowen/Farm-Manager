@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import MobileNav from '$lib/components/MobileNav.svelte';
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 
   // Respect system theme + allow manual override via localStorage 'theme' key.
   onMount(() => {
@@ -21,3 +22,5 @@
 {#if showNav}
   <MobileNav />
 {/if}
+
+<ConfirmDialog />

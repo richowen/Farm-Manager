@@ -7,27 +7,49 @@ import { logger } from './logger';
 import type { PhotoRef } from '$lib/schemas';
 
 /**
- * Photo storage.
+ * Media storage.
  *
- * Images are written to `${UPLOAD_DIR}/YYYY/MM/<uuid>.jpg`. We run them
+ * Images are written to `${UPLOAD_DIR}/YYYY/MM/<uuid>.jpg`. They are run
  * through `sharp` to strip EXIF (keeping orientation), auto-rotate, and
- * downscale anything with a long edge >2000 px. On failure (missing sharp
- * binaries, corrupt file, …) we bail loudly so the client gets a real error
- * rather than silently storing broken data.
+ * downscale anything with a long edge >2000 px.
+ *
+ * Videos are stored as-is under `${UPLOAD_DIR}/YYYY/MM/<uuid>.<ext>`. No
+ * server-side transcoding is performed — the raw file is saved and served back
+ * with Range-request support so browsers can seek without downloading the
+ * whole file.
  */
 
 const MAX_LONG_EDGE = 2000;
 const MAX_BYTES = () => env().UPLOAD_MAX_MB * 1024 * 1024;
 
-// Only allow images — we enforce both by incoming mime-type and by sharp's
-// own output, which is always JPEG after processing.
-const ACCEPTED_MIMES = new Set([
+const IMAGE_MIMES = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
   'image/heic',
   'image/heif'
 ]);
+
+const VIDEO_MIMES = new Set([
+  'video/mp4',
+  'video/quicktime',   // .mov
+  'video/webm',
+  'video/x-m4v',
+  'video/x-msvideo'   // .avi
+]);
+
+const ACCEPTED_MIMES = new Set([...IMAGE_MIMES, ...VIDEO_MIMES]);
+
+function videoExtForMime(mime: string): string {
+  switch (mime) {
+    case 'video/mp4':        return 'mp4';
+    case 'video/quicktime':  return 'mov';
+    case 'video/webm':       return 'webm';
+    case 'video/x-m4v':      return 'm4v';
+    case 'video/x-msvideo':  return 'avi';
+    default:                 return 'mp4';
+  }
+}
 
 /** Validate the incoming File before touching sharp/disk. */
 export function validateUpload(file: File): { ok: true } | { ok: false; reason: string } {
@@ -44,15 +66,28 @@ export async function saveUpload(file: File): Promise<PhotoRef> {
   const yyyy = String(now.getUTCFullYear());
   const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
   const id = crypto.randomUUID();
-  const relPath = `${yyyy}/${mm}/${id}.jpg`;
   const baseDir = env().UPLOAD_DIR;
   const fullDir = path.join(baseDir, yyyy, mm);
-  const fullPath = path.join(fullDir, `${id}.jpg`);
 
   await mkdir(fullDir, { recursive: true });
 
   const arrayBuf = await file.arrayBuffer();
   const inBuf = Buffer.from(arrayBuf);
+
+  // ---- Video: store as-is, no transcoding ------------------------------------
+  if (VIDEO_MIMES.has(file.type)) {
+    const ext = videoExtForMime(file.type);
+    const relPath = `${yyyy}/${mm}/${id}.${ext}`;
+    const fullPath = path.join(fullDir, `${id}.${ext}`);
+    await writeFile(fullPath, inBuf);
+    logger.info({ relPath, size: inBuf.length }, 'video stored');
+    // w/h are 0 for video — dimensions aren't known without ffprobe.
+    return { path: relPath, w: 0, h: 0, size: inBuf.length };
+  }
+
+  // ---- Image: process through sharp ------------------------------------------
+  const relPath = `${yyyy}/${mm}/${id}.jpg`;
+  const fullPath = path.join(fullDir, `${id}.jpg`);
 
   // sharp is loaded dynamically so the server can start even if the native
   // binary is missing in an environment that doesn't need uploads (smoke tests).
@@ -74,9 +109,8 @@ export async function saveUpload(file: File): Promise<PhotoRef> {
     throw new Error('image_processing_unavailable');
   }
 
-  // Decoding / re-encoding can throw "unsupported image format", "input file
-  // contains unsupported image format", etc. Treat all of those as
-  // `invalid_image` so the handler can return a 400 rather than a 500.
+  // Decoding / re-encoding can throw "unsupported image format", etc. Treat
+  // all of those as `invalid_image` so the handler returns 400.
   let outBuf: Buffer;
   let outMeta: { width?: number; height?: number };
   try {
@@ -134,6 +168,10 @@ export function mimeFor(pth: string): string {
   if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
   if (ext === '.png') return 'image/png';
   if (ext === '.webp') return 'image/webp';
+  if (ext === '.mp4' || ext === '.m4v') return 'video/mp4';
+  if (ext === '.mov') return 'video/quicktime';
+  if (ext === '.webm') return 'video/webm';
+  if (ext === '.avi') return 'video/x-msvideo';
   return 'application/octet-stream';
 }
 

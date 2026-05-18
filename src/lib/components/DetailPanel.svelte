@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onDestroy } from 'svelte';
-  import { selectedLocation, selectedLocationId, upsertLocation, toast, locations } from '$lib/stores';
+  import { selectedLocation, selectedLocationId, upsertLocation, toast, locations, showConfirm } from '$lib/stores';
   import { openOverlay } from '$lib/utils/overlay';
   import { api, ApiError } from '$lib/client/api';
   import {
@@ -291,7 +291,12 @@
 
   async function deleteLocation(): Promise<void> {
     if (!loc) return;
-    if (!confirm(`Delete "${loc.name}" and all its events? This cannot be undone.`)) return;
+    if (!await showConfirm({
+      title: `Delete "${loc.name}"?`,
+      message: 'All events for this location will also be deleted. This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true
+    })) return;
     try {
       await api.deleteLocation(loc.id);
       dispatch('locationDeleted', { id: loc.id });

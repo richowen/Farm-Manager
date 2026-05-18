@@ -2,7 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import { api } from '$lib/client/api';
   import { toast } from '$lib/stores';
-  import { resizeImage } from '$lib/utils/resizeImage.js';
+  import { resizeImage } from '$lib/utils/resizeImage';
   import type { PhotoRef } from '$lib/schemas';
   import PhotoLightbox from './PhotoLightbox.svelte';
 
@@ -34,9 +34,9 @@
         const msg =
           err instanceof Error
             ? err.message === 'file_too_large'
-              ? 'File too large (>10 MB).'
+              ? 'File too large.'
               : err.message === 'unsupported_type'
-              ? 'Unsupported file type. Use JPG/PNG/WebP.'
+              ? 'Unsupported file type. Use JPG, PNG, WebP, MP4, MOV, or WebM.'
               : 'Upload failed.'
             : 'Upload failed.';
         toast('error', msg);
@@ -54,6 +54,10 @@
   function openLightbox(p: PhotoRef): void {
     lightboxSrc = `/uploads/${p.path}`;
   }
+
+  function isVideo(p: PhotoRef): boolean {
+    return /\.(mp4|mov|webm|m4v|avi)$/i.test(p.path);
+  }
 </script>
 
 <div class="space-y-2">
@@ -65,9 +69,14 @@
             type="button"
             class="block h-16 w-16 overflow-hidden rounded-md ring-1 ring-slate-200 dark:ring-slate-600"
             on:click={() => openLightbox(p)}
-            aria-label="View photo"
+            aria-label={isVideo(p) ? 'Play video' : 'View photo'}
           >
-            <img src={`/uploads/${p.path}`} alt="" class="h-full w-full object-cover" loading="lazy" />
+            {#if isVideo(p)}
+              <!-- svelte-ignore a11y-media-has-caption -->
+              <video src={`/uploads/${p.path}`} class="h-full w-full object-cover" preload="metadata" muted></video>
+            {:else}
+              <img src={`/uploads/${p.path}`} alt="" class="h-full w-full object-cover" loading="lazy" />
+            {/if}
           </button>
           <button
             type="button"
@@ -82,11 +91,10 @@
     </div>
   {/if}
   <label class="btn-secondary inline-flex cursor-pointer !py-1.5 !text-xs">
-    {uploading > 0 ? `Uploading ${uploading}…` : '+ Add photo'}
+    {uploading > 0 ? `Uploading ${uploading}…` : '+ Add photo / video'}
     <input
       type="file"
-      accept="image/*"
-      capture="environment"
+      accept="image/*,video/*"
       multiple
       class="sr-only"
       on:change={onFiles}

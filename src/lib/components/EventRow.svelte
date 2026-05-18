@@ -7,7 +7,7 @@
   import type { EventRecord, UpdateEventInput } from '$lib/schemas';
   import { formatDateTime, formatRelative } from '$lib/utils/format';
   import { api } from '$lib/client/api';
-  import { toast } from '$lib/stores';
+  import { toast, showConfirm } from '$lib/stores';
 
   export let event: EventRecord;
 
@@ -47,7 +47,7 @@
   }
 
   async function deleteEvent(): Promise<void> {
-    if (!confirm('Delete this event?')) return;
+    if (!await showConfirm({ message: 'Delete this event?', confirmLabel: 'Delete', danger: true })) return;
     try {
       await api.deleteEvent(event.id);
       dispatch('deleted', { id: event.id });
@@ -95,13 +95,19 @@
         {#if event.photos && event.photos.length > 0}
           <div class="mt-2 flex flex-wrap gap-1.5">
             {#each event.photos as p}
+              {@const video = /\.(mp4|mov|webm|m4v|avi)$/i.test(p.path)}
               <button
                 type="button"
                 class="block h-14 w-14 overflow-hidden rounded-md ring-1 ring-slate-200 dark:ring-slate-600"
-                aria-label="View photo"
+                aria-label={video ? 'Play video' : 'View photo'}
                 on:click={() => (lightboxSrc = `/uploads/${p.path}`)}
               >
-                <img src={`/uploads/${p.path}`} alt="" class="h-full w-full object-cover" loading="lazy" />
+                {#if video}
+                  <!-- svelte-ignore a11y-media-has-caption -->
+                  <video src={`/uploads/${p.path}`} class="h-full w-full object-cover" preload="metadata" muted></video>
+                {:else}
+                  <img src={`/uploads/${p.path}`} alt="" class="h-full w-full object-cover" loading="lazy" />
+                {/if}
               </button>
             {/each}
           </div>

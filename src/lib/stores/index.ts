@@ -172,3 +172,31 @@ export function incrementOverlay(): void {
 export function decrementOverlay(): void {
   overlayCount.update((n) => (n > 0 ? n - 1 : 0));
 }
+
+// ---- Confirm dialog ---------------------------------------------------------
+export interface ConfirmOptions {
+  title?: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+}
+
+interface ConfirmState {
+  open: boolean;
+  options: ConfirmOptions;
+  resolve: ((result: boolean) => void) | null;
+}
+
+export const _confirmState = writable<ConfirmState>({
+  open: false,
+  options: { message: '' },
+  resolve: null
+});
+
+export function showConfirm(opts: ConfirmOptions | string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const options = typeof opts === 'string' ? { message: opts } : opts;
+    _confirmState.set({ open: true, options, resolve });
+  });
+}

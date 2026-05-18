@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { api, ApiError } from '$lib/client/api';
-  import { locations, toast } from '$lib/stores';
+  import { locations, toast, showConfirm } from '$lib/stores';
   import { openOverlay } from '$lib/utils/overlay';
   import type { LocationRecord, TaskRecord, PinRecord } from '$lib/schemas';
   import { formatDate, formatDateTime, formatRelative } from '$lib/utils/format';
@@ -31,13 +32,15 @@
   let formError = '';
 
   onMount(async () => {
-    try {
-      const locs = await api.listLocations();
-      locations.set(locs.items);
-      allLocations = locs.items;
-    } catch {
-      /* non-fatal */
+    if ($locations.length === 0) {
+      try {
+        const locs = await api.listLocations();
+        locations.set(locs.items);
+      } catch {
+        /* non-fatal */
+      }
     }
+    allLocations = $locations;
     await reload();
     // Deep-link: /tasks#<id> opens the editor for that task.
     const hashId = $page.url.hash?.replace(/^#/, '');
@@ -62,7 +65,7 @@
       donePins = donePinRes.items;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        window.location.href = '/login';
+        void goto('/login');
         return;
       }
       console.error(err);
@@ -148,7 +151,7 @@
   }
 
   async function deleteTask(t: TaskRecord): Promise<void> {
-    if (!confirm(`Delete "${t.title}"?`)) return;
+    if (!await showConfirm({ message: `Delete "${t.title}"?`, confirmLabel: 'Delete', danger: true })) return;
     try {
       await api.deleteTask(t.id);
       await reload();
@@ -225,7 +228,7 @@
 </script>
 
 <svelte:head>
-  <title>Calendar — Farm Manager</title>
+  <title>Tasks — Farm Manager</title>
 </svelte:head>
 
 <div class="min-h-screen bg-slate-50 dark:bg-slate-900 pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-4">
@@ -236,7 +239,7 @@
           <path d="m15 18-6-6 6-6" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </a>
-      <h1 class="flex-1 text-lg font-semibold">Calendar</h1>
+      <h1 class="flex-1 text-lg font-semibold">Tasks</h1>
       <button class="btn-primary !py-1.5 !text-xs" on:click={openNew}>+ New</button>
     </div>
     <nav class="mx-auto flex max-w-3xl gap-1 px-2 pb-2 overflow-x-auto scrollbar-none">

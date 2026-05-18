@@ -1,16 +1,28 @@
 import { parse } from 'exifr';
 
-export async function resizeImage(file, {
-  maxWidth = 1920,
-  maxHeight = 1920,
-  quality = 0.50,
-  type = 'image/jpeg'
-} = {}) {
+interface ResizeOptions {
+  maxWidth?: number;
+  maxHeight?: number;
+  quality?: number;
+  type?: string;
+}
+
+export async function resizeImage(
+  file: File,
+  {
+    maxWidth = 1920,
+    maxHeight = 1920,
+    quality = 0.5,
+    type = 'image/jpeg'
+  }: ResizeOptions = {}
+): Promise<File> {
   let orientation = 1;
   try {
     const exif = await parse(file, ['Orientation']);
-    orientation = exif?.Orientation ?? 1;
-  } catch {}
+    orientation = (exif?.Orientation as number) ?? 1;
+  } catch {
+    // EXIF parse failure is non-fatal
+  }
 
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -19,26 +31,33 @@ export async function resizeImage(file, {
     img.onload = () => {
       URL.revokeObjectURL(url);
 
-      let { width, height } = img;
+      const { width, height } = img;
       const swapped = orientation >= 5 && orientation <= 8;
-      const naturalWidth  = swapped ? height : width;
-      const naturalHeight = swapped ? width  : height;
+      const naturalWidth = swapped ? height : width;
+      const naturalHeight = swapped ? width : height;
 
-      let targetWidth  = naturalWidth;
+      let targetWidth = naturalWidth;
       let targetHeight = naturalHeight;
       if (naturalWidth > maxWidth || naturalHeight > maxHeight) {
         const ratio = Math.min(maxWidth / naturalWidth, maxHeight / naturalHeight);
-        targetWidth  = Math.round(naturalWidth  * ratio);
+        targetWidth = Math.round(naturalWidth * ratio);
         targetHeight = Math.round(naturalHeight * ratio);
       }
 
       const canvas = document.createElement('canvas');
-      canvas.width  = targetWidth;
+      canvas.width = targetWidth;
       canvas.height = targetHeight;
 
       const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('Canvas context unavailable'));
       applyExifOrientation(ctx, orientation, targetWidth, targetHeight);
-      ctx.drawImage(img, 0, 0, swapped ? targetHeight : targetWidth, swapped ? targetWidth : targetHeight);
+      ctx.drawImage(
+        img,
+        0,
+        0,
+        swapped ? targetHeight : targetWidth,
+        swapped ? targetWidth : targetHeight
+      );
 
       canvas.toBlob(
         (blob) => {
@@ -59,7 +78,12 @@ export async function resizeImage(file, {
   });
 }
 
-function applyExifOrientation(ctx, orientation, width, height) {
+function applyExifOrientation(
+  ctx: CanvasRenderingContext2D,
+  orientation: number,
+  width: number,
+  height: number
+): void {
   switch (orientation) {
     case 2: ctx.transform(-1, 0, 0, 1, width, 0); break;
     case 3: ctx.transform(-1, 0, 0, -1, width, height); break;

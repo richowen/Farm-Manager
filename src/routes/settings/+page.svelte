@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { api, ApiError } from '$lib/client/api';
   import { DEFAULT_USE_COLORS, type LocationRecord, type UserSettings } from '$lib/schemas';
-  import { toast } from '$lib/stores';
+  import { toast, showConfirm } from '$lib/stores';
   import PinCategoryEditor from '$lib/components/PinCategoryEditor.svelte';
 
   let settings: UserSettings | null = null;
@@ -30,7 +31,7 @@
       settings = await api.getSettings();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        window.location.href = '/login';
+        void goto('/login');
         return;
       }
       toast('error', 'Could not load settings.');
@@ -161,9 +162,12 @@
     if (!file) return;
     if (
       importMode === 'replace' &&
-      !confirm(
-        'REPLACE mode will delete all existing locations, events, field-use history, tasks, and pins before importing. Continue?'
-      )
+      !await showConfirm({
+        title: 'Replace all data?',
+        message: 'REPLACE mode will delete all existing locations, events, field-use history, tasks, and pins before importing.',
+        confirmLabel: 'Replace & import',
+        danger: true
+      })
     ) {
       input.value = '';
       return;
@@ -215,7 +219,11 @@
   // ---- iCal feed ----------------------------------------------------------
   async function rotateIcal(): Promise<void> {
     if (settings?.icalFeedToken) {
-      if (!confirm('Rotating will invalidate the current URL — any existing subscriptions will stop updating until you re-subscribe with the new URL. Continue?')) return;
+      if (!await showConfirm({
+        title: 'Rotate feed URL?',
+        message: 'Rotating will invalidate the current URL — any existing subscriptions will stop updating until you re-subscribe with the new URL.',
+        confirmLabel: 'Rotate'
+      })) return;
     }
     icalBusy = true;
     try {
@@ -230,7 +238,12 @@
   }
 
   async function disableIcal(): Promise<void> {
-    if (!confirm('Disable the calendar feed? The URL will stop working.')) return;
+    if (!await showConfirm({
+      title: 'Disable calendar feed?',
+      message: 'The feed URL will stop working immediately.',
+      confirmLabel: 'Disable',
+      danger: true
+    })) return;
     icalBusy = true;
     try {
       await api.disableIcalToken();
@@ -279,9 +292,13 @@
     newUseType = '';
   }
 
-  function removeUseType(t: string): void {
+  async function removeUseType(t: string): Promise<void> {
     if (!settings) return;
-    if (!confirm(`Remove "${t}" from use type list? (Existing history entries keep this type; they just won't be suggested.)`)) return;
+    if (!await showConfirm({
+      message: `Remove "${t}" from use type list? Existing history entries keep this type; they just won't be suggested.`,
+      confirmLabel: 'Remove',
+      danger: true
+    })) return;
     settings = {
       ...settings,
       useTypes: settings.useTypes.filter((x) => x !== t)
@@ -336,6 +353,7 @@
         </svg>
       </a>
       <h1 class="flex-1 text-lg font-semibold">Settings</h1>
+      <button class="btn-primary !py-1.5 !text-xs" on:click={saveSettings}>Save</button>
       <form method="POST" action="/logout">
         <button type="submit" class="btn-ghost !text-sm">Sign out</button>
       </form>
@@ -387,9 +405,6 @@
                 </button>
               {/each}
             </div>
-          </div>
-          <div class="pt-2">
-            <button class="btn-primary" on:click={saveSettings}>Save preferences</button>
           </div>
         </div>
       {:else}
@@ -474,7 +489,6 @@
               </span>
             </div>
           </div>
-          <button class="btn-primary" on:click={saveSettings}>Save label settings</button>
         </div>
       {:else}
         <p class="text-sm text-slate-500">Loading…</p>
@@ -512,9 +526,6 @@
           />
           <button class="btn-secondary" on:click={addUseType}>Add</button>
         </div>
-        <div class="mt-3">
-          <button class="btn-primary" on:click={saveSettings}>Save use types</button>
-        </div>
       {/if}
     </section>
 
@@ -550,9 +561,6 @@
             </label>
           </div>
 
-          <div>
-            <button class="btn-primary" on:click={saveSettings}>Save pin settings</button>
-          </div>
         </div>
       {/if}
     </section>

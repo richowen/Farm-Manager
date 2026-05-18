@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { api, ApiError } from '$lib/client/api';
   import {
     DEFAULT_PIN_CATEGORY_COLORS,
@@ -31,13 +32,15 @@
   let filterLocation = '';
 
   onMount(async () => {
-    try {
-      const locs = await api.listLocations();
-      locations.set(locs.items);
-      allLocations = locs.items;
-    } catch {
-      /* non-fatal */
+    if ($locations.length === 0) {
+      try {
+        const locs = await api.listLocations();
+        locations.set(locs.items);
+      } catch {
+        /* non-fatal */
+      }
     }
+    allLocations = $locations;
     try {
       settings.set(await api.getSettings());
     } catch {
@@ -53,7 +56,7 @@
       allPins = res.items;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        window.location.href = '/login';
+        void goto('/login');
         return;
       }
       console.error(err);

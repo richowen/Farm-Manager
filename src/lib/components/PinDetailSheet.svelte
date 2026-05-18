@@ -6,7 +6,8 @@
     upsertPin,
     removePin,
     locations,
-    toast
+    toast,
+    showConfirm
   } from '$lib/stores';
   import { openOverlay } from '$lib/utils/overlay';
   import { api, ApiError } from '$lib/client/api';
@@ -96,7 +97,7 @@
   async function deletePin(): Promise<void> {
     if (!pin) return;
     const label = pin.title || pin.category || 'this pin';
-    if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
+    if (!await showConfirm({ message: `Delete ${label}? This cannot be undone.`, confirmLabel: 'Delete', danger: true })) return;
     deleting = true;
     try {
       await api.deletePin(pin.id);

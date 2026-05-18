@@ -228,9 +228,12 @@ export type BatchLocationPatchInput = z.infer<typeof batchLocationPatchSchema>;
 
 // ---- Photos -----------------------------------------------------------------
 export const photoRefSchema = z.object({
-  path: z.string().regex(/^[0-9]{4}\/[0-9]{2}\/[a-z0-9-]+\.(jpg|jpeg|png|webp)$/i, 'invalid photo path'),
-  w: z.number().int().positive(),
-  h: z.number().int().positive(),
+  path: z.string().regex(
+    /^[0-9]{4}\/[0-9]{2}\/[a-z0-9-]+\.(jpg|jpeg|png|webp|mp4|mov|webm|m4v|avi)$/i,
+    'invalid media path'
+  ),
+  w: z.number().int().min(0),
+  h: z.number().int().min(0),
   size: z.number().int().positive()
 });
 export type PhotoRef = z.infer<typeof photoRefSchema>;
