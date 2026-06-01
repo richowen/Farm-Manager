@@ -344,9 +344,9 @@
 
 {#if loc}
   <aside
-    class="detail-panel fixed inset-x-0 bottom-0 top-auto z-[1500] max-h-[85dvh] overflow-hidden rounded-t-2xl bg-white shadow-2xl ring-1 ring-black/10 dark:bg-slate-800 sm:right-0 sm:left-auto sm:top-0 sm:max-h-none sm:h-[100dvh] sm:w-[420px] sm:rounded-none sm:rounded-l-2xl"
+    class="detail-panel fixed inset-x-0 bottom-0 top-auto z-[1500] flex max-h-[85dvh] flex-col overflow-hidden rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl ring-1 ring-black/10 dark:bg-slate-800 sm:right-0 sm:left-auto sm:top-0 sm:max-h-none sm:h-[100dvh] sm:w-[420px] sm:pb-0 sm:rounded-none sm:rounded-l-2xl"
   >
-    <div class="flex h-full flex-col">
+    <div class="flex min-h-0 flex-1 flex-col">
       <!-- Header -->
       <div
         class="flex items-start gap-3 border-b border-slate-200 p-4 dark:border-slate-700"

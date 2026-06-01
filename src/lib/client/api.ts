@@ -243,6 +243,11 @@ export const api = {
     return doFetch(`/api/pins/${id}`, { method: 'DELETE' });
   },
 
+  // ---- Products ---------------------------------------------------------
+  listProducts(): Promise<{ items: string[] }> {
+    return doFetch('/api/products');
+  },
+
   // ---- Settings ---------------------------------------------------------
   getSettings(): Promise<import('$lib/schemas').UserSettings> {
     return doFetch('/api/settings');

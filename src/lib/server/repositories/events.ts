@@ -7,6 +7,15 @@ import type {
   UpdateEventInput
 } from '$lib/schemas';
 import crypto from 'node:crypto';
+import { upsertProduct } from './products';
+
+function extractProduct(input: CreateEventInput | UpdateEventInput): string | null {
+  const meta = input.metadata as Record<string, unknown> | undefined;
+  if (!meta) return null;
+  const product = meta.product;
+  if (typeof product === 'string' && product.trim().length > 0) return product.trim();
+  return null;
+}
 
 interface EventRow {
   id: string;
@@ -144,6 +153,14 @@ export async function createEvent(
       JSON.stringify(input.photos ?? [])
     ]
   );
+  const product = extractProduct(input);
+  if (product) {
+    try {
+      await upsertProduct(product);
+    } catch (err) {
+      console.warn('product upsert failed:', err);
+    }
+  }
   return rowToRecord(rows[0]);
 }
 
@@ -181,6 +198,14 @@ export async function updateEvent(
      RETURNING ${SELECT_COLS}`,
     params
   );
+  const product = extractProduct(input);
+  if (product) {
+    try {
+      await upsertProduct(product);
+    } catch (err) {
+      console.warn('product upsert failed:', err);
+    }
+  }
   return rows[0] ? rowToRecord(rows[0]) : null;
 }
 
@@ -226,6 +251,14 @@ export async function createBatch(
      RETURNING ${SELECT_COLS}`,
     params
   );
+  const product = extractProduct(input);
+  if (product) {
+    try {
+      await upsertProduct(product);
+    } catch (err) {
+      console.warn('product upsert failed:', err);
+    }
+  }
   return { batchId, events: rows.map(rowToRecord) };
 }
 
@@ -272,6 +305,14 @@ export async function updateBatch(
      RETURNING ${SELECT_COLS}`,
     params
   );
+  const product = extractProduct(input);
+  if (product) {
+    try {
+      await upsertProduct(product);
+    } catch (err) {
+      console.warn('product upsert failed:', err);
+    }
+  }
   return rows.map(rowToRecord);
 }
 

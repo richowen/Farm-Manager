@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { EVENT_META, EVENT_TYPE_GROUPS } from '$lib/utils/event-types';
   import { EVENT_TYPES, type EventRecord, type EventType, type PhotoRef } from '$lib/schemas';
   import {
@@ -7,10 +7,21 @@
     toDatetimeLocalInput
   } from '$lib/utils/format';
   import PhotoInput from './PhotoInput.svelte';
+  import { api } from '$lib/client/api';
 
   export let initial: EventRecord | null = null;
   /** Optional pre-filled hint banner (e.g. "±8 m GPS accuracy"). */
   export let hint: string | null = null;
+
+  let productSuggestions: string[] = [];
+  onMount(async () => {
+    try {
+      const res = await api.listProducts();
+      productSuggestions = res.items;
+    } catch {
+      productSuggestions = [];
+    }
+  });
 
   const dispatch = createEventDispatcher<{
     save: {
@@ -195,6 +206,7 @@
               type="text"
               class="input"
               placeholder={f.placeholder ?? ''}
+              list={f.key === 'product' ? 'product-suggestions' : undefined}
               bind:value={metadata[f.key]}
             />
           {/if}
@@ -269,4 +281,10 @@
       <button class="btn-primary" on:click={save}>{initial ? 'Save' : 'Add event'}</button>
     </div>
   </div>
+
+  <datalist id="product-suggestions">
+    {#each productSuggestions as p}
+      <option value={p} />
+    {/each}
+  </datalist>
 </div>
